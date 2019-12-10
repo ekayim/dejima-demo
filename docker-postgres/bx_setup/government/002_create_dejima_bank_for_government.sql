@@ -1,8 +1,8 @@
 CREATE OR REPLACE VIEW public.dejima_bank AS 
 SELECT __dummy__.COL0 AS FIRST_NAME,__dummy__.COL1 AS LAST_NAME,__dummy__.COL2 AS PHONE,__dummy__.COL3 AS ADDRESS 
 FROM (SELECT dejima_bank_a4_0.COL0 AS COL0, dejima_bank_a4_0.COL1 AS COL1, dejima_bank_a4_0.COL2 AS COL2, dejima_bank_a4_0.COL3 AS COL3 
-FROM (SELECT bank_users_a6_0.FIRST_NAME AS COL0, bank_users_a6_0.LAST_NAME AS COL1, bank_users_a6_0.PHONE AS COL2, bank_users_a6_0.ADDRESS AS COL3 
-FROM public.bank_users AS bank_users_a6_0  ) AS dejima_bank_a4_0  ) AS __dummy__;
+FROM (SELECT government_users_a6_0.FIRST_NAME AS COL0, government_users_a6_0.LAST_NAME AS COL1, government_users_a6_0.PHONE AS COL2, government_users_a6_0.ADDRESS AS COL3 
+FROM public.government_users AS government_users_a6_0  ) AS dejima_bank_a4_0  ) AS __dummy__;
 
 DROP MATERIALIZED VIEW IF EXISTS public.__dummy__materialized_dejima_bank;
 
@@ -18,8 +18,7 @@ result=$(curl -s -X POST -H "Content-Type: application/json" $DEJIMA_API_ENDPOIN
 if  [ "$result" = "true" ];  then
     echo "true"
 else 
-    echo $result
-    exit 1
+    echo "false"
 fi
 $$ LANGUAGE plsh;
 CREATE OR REPLACE FUNCTION public.dejima_bank_detect_update()
@@ -126,9 +125,9 @@ AS $$
                     EXECUTE 'SELECT ' || func into tv;
                 END LOOP;
             -- ELSE
-                -- RAISE LOG 'result from running the sh script: %', result;
-                -- RAISE check_violation USING MESSAGE = 'update on view is rejected by the external tool, result from running the sh script: ' 
-                -- || result;
+            --     -- RAISE LOG 'result from running the sh script: %', result;
+            --     RAISE check_violation USING MESSAGE = 'update on view is rejected by the external tool, result from running the sh script: ' 
+            --     || result;
             -- END IF;
         -- ELSE 
         --     RAISE LOG 'function of detecting dejima update is called by % , no request sent to dejima proxy', user_name;
@@ -148,10 +147,10 @@ AS $$
   END;
 $$;
 
-DROP TRIGGER IF EXISTS bank_users_detect_update_dejima_bank ON public.bank_users;
-        CREATE TRIGGER bank_users_detect_update_dejima_bank
+DROP TRIGGER IF EXISTS government_users_detect_update_dejima_bank ON public.government_users;
+        CREATE TRIGGER government_users_detect_update_dejima_bank
             AFTER INSERT OR UPDATE OR DELETE ON
-            public.bank_users FOR EACH STATEMENT EXECUTE PROCEDURE public.dejima_bank_detect_update();
+            public.government_users FOR EACH STATEMENT EXECUTE PROCEDURE public.dejima_bank_detect_update();
 
 CREATE OR REPLACE FUNCTION public.dejima_bank_delta_action()
 RETURNS TRIGGER
@@ -167,9 +166,10 @@ AS $$
   json_data text;
   result text;
   user_name text;
-  temprecΔ_del_bank_users public.bank_users%ROWTYPE;
-temprecΔ_ins_bank_users public.bank_users%ROWTYPE;
+  temprecΔ_del_government_users public.government_users%ROWTYPE;
+temprecΔ_ins_government_users public.government_users%ROWTYPE;
   BEGIN
+    RAISE LOG 'dejima_bank_delta_action() called';
     IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'dejima_bank_delta_action_flag') THEN
         -- RAISE LOG 'execute procedure dejima_bank_delta_action';
         CREATE TEMPORARY TABLE dejima_bank_delta_action_flag ON COMMIT DROP AS (SELECT true as finish);
@@ -181,10 +181,10 @@ temprecΔ_ins_bank_users public.bank_users%ROWTYPE;
         THEN 
           RAISE check_violation USING MESSAGE = 'Invalid view update: constraints on the source relations are violated';
         END IF;
-        CREATE TEMPORARY TABLE Δ_del_bank_users WITH OIDS ON COMMIT DROP AS SELECT (ROW(COL0,COL1,COL2,COL3,COL4,COL5) :: public.bank_users).* 
-            FROM (SELECT Δ_del_bank_users_a6_0.COL0 AS COL0, Δ_del_bank_users_a6_0.COL1 AS COL1, Δ_del_bank_users_a6_0.COL2 AS COL2, Δ_del_bank_users_a6_0.COL3 AS COL3, Δ_del_bank_users_a6_0.COL4 AS COL4, Δ_del_bank_users_a6_0.COL5 AS COL5 
-FROM (SELECT bank_users_a6_0.ID AS COL0, bank_users_a6_0.FIRST_NAME AS COL1, bank_users_a6_0.LAST_NAME AS COL2, bank_users_a6_0.IBAN AS COL3, bank_users_a6_0.ADDRESS AS COL4, bank_users_a6_0.PHONE AS COL5 
-FROM public.bank_users AS bank_users_a6_0 
+        CREATE TEMPORARY TABLE Δ_del_government_users WITH OIDS ON COMMIT DROP AS SELECT (ROW(COL0,COL1,COL2,COL3,COL4,COL5) :: public.government_users).* 
+            FROM (SELECT Δ_del_government_users_a6_0.COL0 AS COL0, Δ_del_government_users_a6_0.COL1 AS COL1, Δ_del_government_users_a6_0.COL2 AS COL2, Δ_del_government_users_a6_0.COL3 AS COL3, Δ_del_government_users_a6_0.COL4 AS COL4, Δ_del_government_users_a6_0.COL5 AS COL5 
+FROM (SELECT government_users_a6_0.ID AS COL0, government_users_a6_0.FIRST_NAME AS COL1, government_users_a6_0.LAST_NAME AS COL2, government_users_a6_0.PHONE AS COL3, government_users_a6_0.ADDRESS AS COL4, government_users_a6_0.BIRTHDATE AS COL5 
+FROM public.government_users AS government_users_a6_0 
 WHERE NOT EXISTS ( SELECT * 
 FROM (SELECT dejima_bank_a4_0.FIRST_NAME AS COL0, dejima_bank_a4_0.LAST_NAME AS COL1, dejima_bank_a4_0.PHONE AS COL2, dejima_bank_a4_0.ADDRESS AS COL3 
 FROM public.dejima_bank AS dejima_bank_a4_0 
@@ -192,32 +192,32 @@ WHERE NOT EXISTS ( SELECT *
 FROM __temp__Δ_del_dejima_bank AS __temp__Δ_del_dejima_bank_a4 
 WHERE __temp__Δ_del_dejima_bank_a4.ADDRESS = dejima_bank_a4_0.ADDRESS AND __temp__Δ_del_dejima_bank_a4.PHONE = dejima_bank_a4_0.PHONE AND __temp__Δ_del_dejima_bank_a4.LAST_NAME = dejima_bank_a4_0.LAST_NAME AND __temp__Δ_del_dejima_bank_a4.FIRST_NAME = dejima_bank_a4_0.FIRST_NAME )  UNION SELECT __temp__Δ_ins_dejima_bank_a4_0.FIRST_NAME AS COL0, __temp__Δ_ins_dejima_bank_a4_0.LAST_NAME AS COL1, __temp__Δ_ins_dejima_bank_a4_0.PHONE AS COL2, __temp__Δ_ins_dejima_bank_a4_0.ADDRESS AS COL3 
 FROM __temp__Δ_ins_dejima_bank AS __temp__Δ_ins_dejima_bank_a4_0  ) AS new_dejima_bank_a4 
-WHERE new_dejima_bank_a4.COL3 = bank_users_a6_0.ADDRESS AND new_dejima_bank_a4.COL2 = bank_users_a6_0.PHONE AND new_dejima_bank_a4.COL1 = bank_users_a6_0.LAST_NAME AND new_dejima_bank_a4.COL0 = bank_users_a6_0.FIRST_NAME ) ) AS Δ_del_bank_users_a6_0  ) AS Δ_del_bank_users_extra_alias;
+WHERE new_dejima_bank_a4.COL3 = government_users_a6_0.ADDRESS AND new_dejima_bank_a4.COL2 = government_users_a6_0.PHONE AND new_dejima_bank_a4.COL1 = government_users_a6_0.LAST_NAME AND new_dejima_bank_a4.COL0 = government_users_a6_0.FIRST_NAME ) ) AS Δ_del_government_users_a6_0  ) AS Δ_del_government_users_extra_alias;
 
-CREATE TEMPORARY TABLE Δ_ins_bank_users WITH OIDS ON COMMIT DROP AS SELECT (ROW(COL0,COL1,COL2,COL3,COL4,COL5) :: public.bank_users).* 
-            FROM (SELECT Δ_ins_bank_users_a6_0.COL0 AS COL0, Δ_ins_bank_users_a6_0.COL1 AS COL1, Δ_ins_bank_users_a6_0.COL2 AS COL2, Δ_ins_bank_users_a6_0.COL3 AS COL3, Δ_ins_bank_users_a6_0.COL4 AS COL4, Δ_ins_bank_users_a6_0.COL5 AS COL5 
-FROM (SELECT current_max_id_a1_1.COL0+1 AS COL0, new_dejima_bank_a4_0.COL0 AS COL1, new_dejima_bank_a4_0.COL1 AS COL2, 'unknown' AS COL3, new_dejima_bank_a4_0.COL3 AS COL4, new_dejima_bank_a4_0.COL2 AS COL5 
+CREATE TEMPORARY TABLE Δ_ins_government_users WITH OIDS ON COMMIT DROP AS SELECT (ROW(COL0,COL1,COL2,COL3,COL4,COL5) :: public.government_users).* 
+            FROM (SELECT Δ_ins_government_users_a6_0.COL0 AS COL0, Δ_ins_government_users_a6_0.COL1 AS COL1, Δ_ins_government_users_a6_0.COL2 AS COL2, Δ_ins_government_users_a6_0.COL3 AS COL3, Δ_ins_government_users_a6_0.COL4 AS COL4, Δ_ins_government_users_a6_0.COL5 AS COL5 
+FROM (SELECT current_max_id_a1_1.COL0+1 AS COL0, new_dejima_bank_a4_0.COL0 AS COL1, new_dejima_bank_a4_0.COL1 AS COL2, new_dejima_bank_a4_0.COL2 AS COL3, new_dejima_bank_a4_0.COL3 AS COL4, '0001-01-01' AS COL5 
 FROM (SELECT dejima_bank_a4_0.FIRST_NAME AS COL0, dejima_bank_a4_0.LAST_NAME AS COL1, dejima_bank_a4_0.PHONE AS COL2, dejima_bank_a4_0.ADDRESS AS COL3 
 FROM public.dejima_bank AS dejima_bank_a4_0 
 WHERE NOT EXISTS ( SELECT * 
 FROM __temp__Δ_del_dejima_bank AS __temp__Δ_del_dejima_bank_a4 
 WHERE __temp__Δ_del_dejima_bank_a4.ADDRESS = dejima_bank_a4_0.ADDRESS AND __temp__Δ_del_dejima_bank_a4.PHONE = dejima_bank_a4_0.PHONE AND __temp__Δ_del_dejima_bank_a4.LAST_NAME = dejima_bank_a4_0.LAST_NAME AND __temp__Δ_del_dejima_bank_a4.FIRST_NAME = dejima_bank_a4_0.FIRST_NAME )  UNION SELECT __temp__Δ_ins_dejima_bank_a4_0.FIRST_NAME AS COL0, __temp__Δ_ins_dejima_bank_a4_0.LAST_NAME AS COL1, __temp__Δ_ins_dejima_bank_a4_0.PHONE AS COL2, __temp__Δ_ins_dejima_bank_a4_0.ADDRESS AS COL3 
 FROM __temp__Δ_ins_dejima_bank AS __temp__Δ_ins_dejima_bank_a4_0  ) AS new_dejima_bank_a4_0, (SELECT MAX(all_ids_a1_0.COL0) AS COL0 
-FROM (SELECT 0 AS COL0    UNION SELECT bank_users_a6_0.ID AS COL0 
-FROM public.bank_users AS bank_users_a6_0  ) AS all_ids_a1_0   ) AS current_max_id_a1_1 
+FROM (SELECT 0 AS COL0    UNION SELECT government_users_a6_0.ID AS COL0 
+FROM public.government_users AS government_users_a6_0  ) AS all_ids_a1_0   ) AS current_max_id_a1_1 
 WHERE NOT EXISTS ( SELECT * 
-FROM public.bank_users AS bank_users_a6 
-WHERE bank_users_a6.PHONE = new_dejima_bank_a4_0.COL2 AND bank_users_a6.ADDRESS = new_dejima_bank_a4_0.COL3 AND bank_users_a6.LAST_NAME = new_dejima_bank_a4_0.COL1 AND bank_users_a6.FIRST_NAME = new_dejima_bank_a4_0.COL0 ) ) AS Δ_ins_bank_users_a6_0  ) AS Δ_ins_bank_users_extra_alia 
+FROM public.government_users AS government_users_a6 
+WHERE government_users_a6.ADDRESS = new_dejima_bank_a4_0.COL3 AND government_users_a6.PHONE = new_dejima_bank_a4_0.COL2 AND government_users_a6.LAST_NAME = new_dejima_bank_a4_0.COL1 AND government_users_a6.FIRST_NAME = new_dejima_bank_a4_0.COL0 ) ) AS Δ_ins_government_users_a6_0  ) AS Δ_ins_government_users_extra_alia 
             EXCEPT 
-            SELECT * FROM  public.bank_users; 
+            SELECT * FROM  public.government_users; 
 
-FOR temprecΔ_del_bank_users IN ( SELECT * FROM Δ_del_bank_users) LOOP 
-            DELETE FROM public.bank_users WHERE ROW(ID,FIRST_NAME,LAST_NAME,IBAN,ADDRESS,PHONE) =  temprecΔ_del_bank_users;
+FOR temprecΔ_del_government_users IN ( SELECT * FROM Δ_del_government_users) LOOP 
+            DELETE FROM public.government_users WHERE ROW(ID,FIRST_NAME,LAST_NAME,PHONE,ADDRESS,BIRTHDATE) =  temprecΔ_del_government_users;
             END LOOP;
-DROP TABLE Δ_del_bank_users;
+DROP TABLE Δ_del_government_users;
 
-INSERT INTO public.bank_users (SELECT * FROM  Δ_ins_bank_users) ; 
-DROP TABLE Δ_ins_bank_users;
+INSERT INTO public.government_users (SELECT * FROM  Δ_ins_government_users) ; 
+DROP TABLE Δ_ins_government_users;
         
         insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM __temp__Δ_ins_dejima_bank EXCEPT SELECT * FROM public.__dummy__materialized_dejima_bank) as t);
         IF insertion_data IS NOT DISTINCT FROM NULL THEN 
@@ -268,6 +268,7 @@ AS $$
   text_var2 text;
   text_var3 text;
   BEGIN
+    RAISE LOG 'dejima_bank_materialization() called';
     IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = '__temp__Δ_ins_dejima_bank' OR table_name = '__temp__Δ_del_dejima_bank')
     THEN
         -- RAISE LOG 'execute procedure dejima_bank_materialization';
@@ -311,6 +312,7 @@ AS $$
   text_var2 text;
   text_var3 text;
   BEGIN
+    RAISE LOG 'dejima_bank_update() called';
     -- RAISE LOG 'execute procedure dejima_bank_update';
     IF TG_OP = 'INSERT' THEN
       -- RAISE LOG 'NEW: %', NEW;
@@ -350,7 +352,7 @@ CREATE TRIGGER dejima_bank_trigger_update
     INSTEAD OF INSERT OR UPDATE OR DELETE ON
       public.dejima_bank FOR EACH ROW EXECUTE PROCEDURE public.dejima_bank_update();
 
--- dejima_bank(FIRST_NAME, LAST_NAME, PHONE, ADDRESS) :- bank_users(_, FIRST_NAME, LAST_NAME, _, ADDRESS, PHONE).
+-- dejima_bank(FIRST_NAME, LAST_NAME, PHONE, ADDRESS) :- government_users(_, FIRST_NAME, LAST_NAME, PHONE, ADDRESS, _).
 
 CREATE OR REPLACE FUNCTION public.dejima_bank_col2col_mapping()
 RETURNS text
@@ -362,10 +364,10 @@ AS $$
   BEGIN
     mappping = 
 '{
-  dejima_bank.FIRST_NAME: bank_users.FIRST_NAME,
-  dejima_bank.LAST_NAME: bank_users.LAST_NAME,
-  dejima_bank.PHONE: bank_users.PHONE,
-  dejima_bank.ADDRESS: bank_users.ADDRESS
+  dejima_bank.FIRST_NAME: government_users.FIRST_NAME,
+  dejima_bank.LAST_NAME: government_users.LAST_NAME,
+  dejima_bank.PHONE: government_users.PHONE,
+  dejima_bank.ADDRESS: government_users.ADDRESS
 }';
     RETURN mappping;
   END;
