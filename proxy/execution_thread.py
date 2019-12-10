@@ -2,6 +2,8 @@ import threading
 import logging
 import psycopg2
 import dejimautils
+import os
+import json
 
 class ExecutionThread(threading.Thread):
     def __init__(self, sql_statements="", source_xid=""):
@@ -9,6 +11,7 @@ class ExecutionThread(threading.Thread):
         self.sql_statements = sql_statements
         self.source_xid = source_xid
         self.ack_or_nak = ""
+        self.ack_event = threading.Event()
         self.commit_or_abort = ""
         self.termination_event = threading.Event()
 
@@ -23,8 +26,17 @@ class ExecutionThread(threading.Thread):
 
                 # phase2 : detect other dejima view update
                 # if no other dejima view exists, send ack for parent proxy
+                dejima_setting = {}
+                with open("/proxy/dejima_setting.json") as f:
+                    dejima_setting = json.load(f)
+                    logging.info("load success")
+                dejima_view_list = dejima_setting["dejima_view"][os.environ['PEER_NAME']]
+                    
                 cur.execute("SELECT non_trigger_dejima_bank_detect_update();")
-                sql_for_other_proxy = dejimautils.convert_to_sql_from_json(cur.fetchall()[0][0])
+                return_value, *_ = cur.fetchone()
+                logging.info(type(return_value))
+                logging.info(return_value)
+                # return_value -> str
 
                 # phase3 : 
 

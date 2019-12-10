@@ -1,0 +1,10 @@
+{
+	"dejima_view":{
+		"bank": [
+			"dejima_bank"
+		],
+		"government":[
+			"dejima_bank"
+		]
+	}
+}
