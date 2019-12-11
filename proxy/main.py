@@ -1,7 +1,8 @@
-from execution_thread import ExecutionThread
+from execution_thread import ExecutionThreadForView
 import socket
 import logging
 import json
+import uuid
 
 logging.basicConfig(level=logging.DEBUG)
 thread_dict = {}
@@ -22,10 +23,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             logging.info("update_dejima_view is called.")
             
             # params parse
-            sql_statements = params_dict["sql_statements"]
+            view_update = params_dict["view_update"]
             source_xid = params_dict["source_xid"]
+            parent_peer = params_dict["parent_peer"]
 
-            t = ExecutionThread(sql_statements, source_xid)
+            t = ExecutionThreadForView(view_update, source_xid, parent_peer)
             thread_dict[source_xid] = t
             t.start()
             res_header = "HTTP/1.0 200 OK \r\n\r\nack"
@@ -45,13 +47,30 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             t.join()
             res_header = "HTTP/1.0 200 OK \r\n\r\nack"
         
-        elif url == "/propagate":
-            # this action is called by this proxy's postgreSQL only.
-            logging.info("propagate is calle.")
+        elif url == "/accept_ack":
+            # this action is called by child proxies only.
+            logging.info("accept_ack is called.")
+
+            # params parse
+            event_key = params_dict["event_key"]
+            source_xid = params_dict["source_xid"]
+            ack_or_nak = params_dict["ack_or_nak"]
+
+            # inform execution thread about ack
+            thread_dict[source_xid].ack_dict[event_key] = ack_or_nak
+            thread_dict[source_xid].ack_event_dict[event_key].set()
 
         elif url == "/exec_transaction":
             # this action is called by user.
             logging.info("exec_transaction is called.")
+
+            # params parse
+            sql_statements = params_dict["sql_statements"]
+            my_peer_name = os.environ['PEER_NAME']
+            source_xid = str(uuid.uuid4())
+
+            t = ExecutionThreadForBase(sql_statements, source_xid)
+            t.start()
             res_header = "HTTP/1.0 200 OK \r\n\r\nack"
 
         else :

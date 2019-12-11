@@ -1,6 +1,8 @@
 import json
 
 def convert_to_sql_from_json(json_data):
+    # arg : json_data from other peer
+    # output : view name(str) , sql statements for view(str)
     sql_statements = ""
     json_dict = json.loads(json_data)
     for insert in json_dict["insertions"]:
@@ -25,5 +27,5 @@ def convert_to_sql_from_json(json_data):
         where = where[0:-5]
         sql_statements += "DELETE FROM {} WHERE {};\n".format(json_dict["view"], where)
 
-    return sql_statements
+    return json_dict["view"], sql_statements
 

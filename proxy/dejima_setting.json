@@ -6,5 +6,11 @@
 		"government":[
 			"dejima_bank"
 		]
+	},
+	"peer_member":{
+		"dejima_bank": [
+			"bank",
+			"government"
+		]
 	}
 }
