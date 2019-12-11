@@ -24,12 +24,41 @@ services:
       - 8001:8000
     environment:
       - PEER_NAME=bank
-      - POSTGRES_HOST=bank-postgres.dejima-net
       - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
     networks:
       - dejima-net
     depends_on:
       - bank-postgres
+
+  government-postgres:
+    image: ekayim/dejima-postgres:latest
+    container_name: government-postgres
+    ports:
+      - 54322:5432
+    networks:
+      - dejima-net
+    environment:
+      - PEER_NAME=government
+    volumes:
+      - ./docker-postgres/conf/postgresql.conf:/etc/postgresql.conf
+      - ./docker-postgres/init:/docker-entrypoint-initdb.d/
+      - ./docker-postgres/bx_setup:/etc/bx_setup
+
+
+  government-proxy:
+    image: ekayim/dejima-proxy:latest
+    container_name: government-proxy
+    volumes:
+      - ./proxy:/proxy
+    ports:
+      - 8002:8000
+    environment:
+      - PEER_NAME=government
+      - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+    networks:
+      - dejima-net
+    depends_on:
+      - government-postgres
 
 networks:
   dejima-net:
