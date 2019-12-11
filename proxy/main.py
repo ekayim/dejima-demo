@@ -1,8 +1,9 @@
-from execution_thread import ExecutionThreadForView
+from execution_thread import ExecutionThreadForView, ExecutionThreadForBase
 import socket
 import logging
 import json
 import uuid
+import os
 
 logging.basicConfig(level=logging.DEBUG)
 thread_dict = {}
@@ -16,6 +17,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         req = conn.recv(1024).decode()
         req_list = req.split("\r\n\r\n")
         url = req_list[0].split()[1]
+        logging.info(req)
+        logging.info(type(req_list[1]))
         params_dict = json.loads(req_list[1])
             
         if url == "/update_dejima_view":
@@ -66,6 +69,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
             # params parse
             sql_statements = params_dict["sql_statements"]
+
             my_peer_name = os.environ['PEER_NAME']
             source_xid = str(uuid.uuid4())
 
