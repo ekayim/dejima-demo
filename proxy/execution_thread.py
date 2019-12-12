@@ -48,17 +48,25 @@ class ExecutionThreadForView(threading.Thread):
                     for dv_name in dv_set_for_propagate:
                         cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
                         update_json, *_ = cur.fetchone()
+                        logging.info("update_json: {}".format(update_json))
                         for peer_name in dejima_setting["peer_member"][dv_name]:
                             if peer_name != my_peer_name:
+                                payload = {
+                                        "source_xid": self.source_xid,
+                                        "view_update": update_json,
+                                        "parent_peer": my_peer_name
+                                        }
                                 requests.post(
                                         'http://{}-proxy:8000/update_dejima_view'.format(peer_name),
-                                        json.dumps({'source_xid': self.source_xid, 'view_update': update_json, 'parent_peer': my_peer_name}).encode("utf-8"),
+                                        data = json.dumps(payload),
                                         headers={'Content-Type': 'application/json'}
                                         )
                                 self.ack_event_dict["{}:{}".format(dv_name, peer_name)] = threading.Event()
                                 self.ack_dict["{}:{}".format(dv_name, peer_name)] = "nak"
                                 peer_set.add(peer_name)
-                    for event in ack_event_dict.values:
+
+                    logging.info("before wait")
+                    for event in ack_event_dict.values():
                         event.wait()
 
                 # phase 4 : check commitability ( surveying )
@@ -66,19 +74,32 @@ class ExecutionThreadForView(threading.Thread):
 
                 # phase 5 : send ack or nak for parent peer
                 ack = True
-                for result in ack_dict.values:
-                    if result != "nak":
-                       ack = False 
+                if dv_set_for_propagate:  
+                    for result in ack_dict.values():
+                        if result != "nak":
+                           ack = False 
+
                 if ack:
+                    logging.info("send ack for parent")
+                    payload = {
+                            "event_key":"{}:{}".format(view_name, my_peer_name),
+                            "source_xid":self.source_xid,
+                            "ack_or_nak": "ack"
+                            }
                     requests.post(
                             'http://{}-proxy:8000/accept_ack'.format(self.parent_peer),
-                            json.dumps({'event_key':"{}:{}".format(view_name, my_peer_name), 'source_xid':self.source_xid, 'ack_or_nak': "ack"}).encode("utf-8"),
+                            data = json.dumps(payload),
                             headers={'Content-Type': 'application/json'}
                             )
                 else:
+                    payload = {
+                            "event_key":"{}:{}".format(view_name, my_peer_name),
+                            "source_xid":self.source_xid,
+                            "ack_or_nak": "nak"
+                            }
                     requests.post(
                             'http://{}-proxy:8000/accept_ack'.format(self.parent_peer),
-                            json.dumps({'event_key':"{}:{}".format(view_name, my_peer_name), 'source_xid':self.source_xid, 'ack_or_nak': "nak"}),
+                            data = json.dumps(payload),
                             headers={'Content-Type': 'application/json'}
                             )
 
@@ -90,18 +111,26 @@ class ExecutionThreadForView(threading.Thread):
                 if self.commit_or_abort == "commit":
                     conn.commit()
                     for peer in peer_set:
+                        payload = {
+                                "source_xid":self.source_xid,
+                                "commit_or_abort": "commit"
+                                }
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
-                                json.dumps({'source_xid':self.source_xid, 'commit_or_abort': "commit"}),
+                                data = json.dumps(payload),
                                 headers={'Content-Type': 'application/json'}
                                 )
                     logging.info("xid [{}] execution thread finished. result->commit".format(self.source_xid))
                 elif self.commit_or_abort == "abort":
                     conn.abort()
                     for peer in peer_set:
+                        payload = {
+                                "source_xid":self.source_xid,
+                                "commit_or_abort": "abort"
+                                }
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
-                                json.dumps({'source_xid':self.source_xid, 'commit_or_abort': "abort"}),
+                                data = json.dumps(payload),
                                 headers={'Content-Type': 'application/json'}
                                 )
                     logging.info("xid [{}] execution thread finished. result->abort".format(self.source_xid))
@@ -142,30 +171,60 @@ class ExecutionThreadForBase(threading.Thread):
                     for dv_name in dv_set_for_propagate:
                         cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
                         update_json, *_ = cur.fetchone()
+                        logging.info("update json: {}".format(update_json))
                         for peer_name in dejima_setting["peer_member"][dv_name]:
                             if peer_name != my_peer_name:
+                                payload = {
+                                        "source_xid": self.source_xid,
+                                        "view_update": update_json,
+                                        "parent_peer": my_peer_name
+                                        }
+                                logging.info(payload)
+                                logging.info(json.dumps(payload))
                                 requests.post(
                                         'http://{}-proxy:8000/update_dejima_view'.format(peer_name),
-                                        json.dumps({'source_xid': self.source_xid, 'view_update': update_json, 'parent_peer': my_peer_name}),
+                                        data = json.dumps(payload),
                                         headers={'Content-Type': 'application/json'}
                                         )
                                 self.ack_event_dict["{}:{}".format(dv_name, peer_name)] = threading.Event()
                                 self.ack_dict["{}:{}".format(dv_name, peer_name)] = "nak"
                                 peer_set.add(peer_name)
-                    for event in ack_event_dict.values:
+                    for event in self.ack_event_dict.values():
                         event.wait()
-
+                        logging.info(self.ack_dict)
                 # phase 4 : check commitability ( surveying )
                 # PREPARE TRANSACTION is not available, so need to check this transaction commitable by yourself.
 
+                logging.info(self.ack_dict)
+                logging.info("for base, ack check")
+                logging.info("ack_dict.keys()".format(self.ack_dict.keys()))
                 ack = True
-                for result in ack_dict.values:
+                for result in self.ack_dict.values():
                     if result != "nak":
                        ack = False 
                 if ack:
                     conn.commit()
+                    for peer in peer_set:
+                        payload = {
+                                "source_xid":self.source_xid,
+                                "commit_or_abort": "commit"
+                                }
+                        requests.post(
+                                'http://{}-proxy:8000/commit_or_abort'.format(peer),
+                                data = json.dumps(payload),
+                                headers={'Content-Type': 'application/json'}
+                                )
                     logging.info("xid [{}] base execution thread finished. result->commit".format(self.source_xid))
                 else:
                     conn.abort()
+                    for peer in peer_set:
+                        payload = {
+                                "source_xid":self.source_xid,
+                                "commit_or_abort": "abort"
+                                }
+                        requests.post(
+                                'http://{}-proxy:8000/commit_or_abort'.format(peer),
+                                data = json.dumps(payload),
+                                headers={'Content-Type': 'application/json'}
+                                )
                     logging.info("xid [{}] base execution thread finished. result->abort".format(self.source_xid))
-

@@ -15,11 +15,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     while True:
         conn, _ = s.accept()
         req = conn.recv(1024).decode()
-        req_list = req.split("\r\n\r\n")
-        url = req_list[0].split()[1]
-        logging.info(req)
-        logging.info(type(req_list[1]))
-        params_dict = json.loads(req_list[1])
+        request_line, message_body = req.split("\r\n\r\n")
+        url = request_line.split()[1]
+        params_dict = json.loads(message_body)
             
         if url == "/update_dejima_view":
             # this action is called by other proxies only.
@@ -62,6 +60,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             # inform execution thread about ack
             thread_dict[source_xid].ack_dict[event_key] = ack_or_nak
             thread_dict[source_xid].ack_event_dict[event_key].set()
+            res_header = "HTTP/1.0 200 OK \r\n\r\nack"
 
         elif url == "/exec_transaction":
             # this action is called by user.
@@ -74,6 +73,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             source_xid = str(uuid.uuid4())
 
             t = ExecutionThreadForBase(sql_statements, source_xid)
+            thread_dict[source_xid] = t
             t.start()
             res_header = "HTTP/1.0 200 OK \r\n\r\nack"
 
