@@ -3,7 +3,7 @@
 - proxy : ekayim/dejima-proxy <python3.7.2 customed>
 
 # action binding URL
-**user can use only "/exec_transaction". Other action is supposed the one which is called by peer proxy.**
+**user can use only /exec_transaction. Other action is supposed the one which is called by peer proxy.**
 
 
 ## /exec_transaction

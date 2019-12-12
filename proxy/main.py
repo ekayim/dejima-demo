@@ -17,6 +17,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         req = conn.recv(1024).decode()
         request_line, message_body = req.split("\r\n\r\n")
         url = request_line.split()[1]
+        logging.info("req : {}".format(req))
         params_dict = json.loads(message_body)
             
         if url == "/update_dejima_view":

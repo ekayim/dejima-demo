@@ -1,0 +1,17 @@
+source insurance_users(ID:int, FIRST_NAME:string, LAST_NAME:string, INSURANCE_NUMBER:string, ADDRESS:string, BIRTHDATE:string).
+view dejima_insurance(FIRST_NAME:string, LAST_NAME:string, ADDRESS:string, BIRTHDATE:string).
+
+% view definition
+dejima_insurance(FIRST_NAME, LAST_NAME, ADDRESS, BIRTHDATE) :- insurance_users(_, FIRST_NAME, LAST_NAME, _, ADDRESS, BIRTHDATE).
+
+% update strategy for view 
+
+-insurance_users(ID, FIRST_NAME, LAST_NAME, INSURANCE_NUMBER, ADDRESS, BIRTHDATE) :- insurance_users(ID, FIRST_NAME, LAST_NAME, INSURANCE_NUMBER, ADDRESS, BIRTHDATE), NOT dejima_insurance(FIRST_NAME, LAST_NAME, ADDRESS, BIRTHDATE).
+
+all_ids(ID) :- ID = 0.
+all_ids(ID) :- insurance_users(ID, _, _, _, _, _).
+
+current_max_id(MAX(ID)) :- all_ids(ID).
+
++insurance_users(ID, FIRST_NAME, LAST_NAME, 'unknown', ADDRESS, BIRTHDATE) :- dejima_insurance(FIRST_NAME, LAST_NAME, ADDRESS, BIRTHDATE), 
+    NOT insurance_users(_, FIRST_NAME, LAST_NAME, _, ADDRESS, BIRTHDATE), current_max_id(LAST_ID), ID = LAST_ID + 1.

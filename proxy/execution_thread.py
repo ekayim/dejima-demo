@@ -4,7 +4,7 @@ import psycopg2
 import dejimautils
 import os
 import json
-import requests
+import socket
 
 class ExecutionThreadForView(threading.Thread):
     def __init__(self, view_update="", source_xid="", parent_peer=""):
@@ -25,11 +25,13 @@ class ExecutionThreadForView(threading.Thread):
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
 
                 # phase1 : execute update for certain dejima view
+                logging.info("View: execute view update")
                 view_name, sql_for_dejima_view = dejimautils.convert_to_sql_from_json(self.view_update)
                 view_name = view_name.replace("public.", "")
                 cur.execute(sql_for_dejima_view)
 
                 # phase2 : detect update for other dejima view and member of the view.
+                logging.info("View: listup this peer's dejima views execpt {}".format(view_name))
                 dejima_setting = {}
                 with open("/proxy/dejima_setting.json") as f:
                     dejima_setting = json.load(f)
@@ -42,13 +44,13 @@ class ExecutionThreadForView(threading.Thread):
                 #     update_view_dict[dejima_view]["peer_member"] = dejima_setting["peer_member"][dejima_view]
 
                 # phase 3 : propagate update for child peer
+                logging.info("View: send view update for child")
                 peer_set = set()
                 if dv_set_for_propagate:
                     # phase3-2 : propagate dejima view update
                     for dv_name in dv_set_for_propagate:
                         cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
                         update_json, *_ = cur.fetchone()
-                        logging.info("update_json: {}".format(update_json))
                         for peer_name in dejima_setting["peer_member"][dv_name]:
                             if peer_name != my_peer_name:
                                 payload = {
@@ -59,20 +61,21 @@ class ExecutionThreadForView(threading.Thread):
                                 requests.post(
                                         'http://{}-proxy:8000/update_dejima_view'.format(peer_name),
                                         data = json.dumps(payload),
-                                        headers={'Content-Type': 'application/json'}
+                                        headers={'Content-Type': 'text/plain'}
                                         )
                                 self.ack_event_dict["{}:{}".format(dv_name, peer_name)] = threading.Event()
                                 self.ack_dict["{}:{}".format(dv_name, peer_name)] = "nak"
                                 peer_set.add(peer_name)
 
-                    logging.info("before wait")
-                    for event in ack_event_dict.values():
+                    logging.info("wait ack from child")
+                    for event in self.ack_event_dict.values():
                         event.wait()
 
                 # phase 4 : check commitability ( surveying )
                 # PREPARE TRANSACTION is not available, so need to check this transaction commitable by yourself.
 
                 # phase 5 : send ack or nak for parent peer
+                logging.info("View: send ack/nak for parent")
                 ack = True
                 if dv_set_for_propagate:  
                     for result in ack_dict.values():
@@ -80,7 +83,6 @@ class ExecutionThreadForView(threading.Thread):
                            ack = False 
 
                 if ack:
-                    logging.info("send ack for parent")
                     payload = {
                             "event_key":"{}:{}".format(view_name, my_peer_name),
                             "source_xid":self.source_xid,
@@ -89,7 +91,7 @@ class ExecutionThreadForView(threading.Thread):
                     requests.post(
                             'http://{}-proxy:8000/accept_ack'.format(self.parent_peer),
                             data = json.dumps(payload),
-                            headers={'Content-Type': 'application/json'}
+                            headers={'Content-Type': 'text/plain'}
                             )
                 else:
                     payload = {
@@ -100,14 +102,15 @@ class ExecutionThreadForView(threading.Thread):
                     requests.post(
                             'http://{}-proxy:8000/accept_ack'.format(self.parent_peer),
                             data = json.dumps(payload),
-                            headers={'Content-Type': 'application/json'}
+                            headers={'Content-Type': 'text/plain'}
                             )
 
                 # phase 6 : wait for commit
-                logging.info("ExecutionThreadForView : wait for commit")
+                logging.info("View: wait commit/abort from parent")
                 self.termination_event.wait()
 
                 # phase 7 : commit or abort
+                logging.ingo("View: commit or abort according the instruction from parent")
                 if self.commit_or_abort == "commit":
                     conn.commit()
                     for peer in peer_set:
@@ -118,7 +121,7 @@ class ExecutionThreadForView(threading.Thread):
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
                                 data = json.dumps(payload),
-                                headers={'Content-Type': 'application/json'}
+                                headers={'Content-Type': 'text/plain'}
                                 )
                     logging.info("xid [{}] execution thread finished. result->commit".format(self.source_xid))
                 elif self.commit_or_abort == "abort":
@@ -131,7 +134,7 @@ class ExecutionThreadForView(threading.Thread):
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
                                 data = json.dumps(payload),
-                                headers={'Content-Type': 'application/json'}
+                                headers={'Content-Type': 'text/plain'}
                                 )
                     logging.info("xid [{}] execution thread finished. result->abort".format(self.source_xid))
 
@@ -151,9 +154,11 @@ class ExecutionThreadForBase(threading.Thread):
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
 
                 # phase1 : execute update for base table
+                logging.info("Base: exec transaction for base table")
                 cur.execute(self.sql_statements)
 
                 # phase2 : detect update for other dejima view and member of the view.
+                logging.info("Base: listup this peer's dejima views")
                 dejima_setting = {}
                 with open("/proxy/dejima_setting.json") as f:
                     dejima_setting = json.load(f)
@@ -165,13 +170,13 @@ class ExecutionThreadForBase(threading.Thread):
                 #     update_view_dict[dejima_view]["peer_member"] = dejima_setting["peer_member"][dejima_view]
 
                 # phase 3 : propagate update for child peer
+                logging.info("Base: propagate view update for child")
                 peer_set = set()
                 if dv_set_for_propagate:
                     # phase3-2 : propagate dejima view update
                     for dv_name in dv_set_for_propagate:
                         cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
                         update_json, *_ = cur.fetchone()
-                        logging.info("update json: {}".format(update_json))
                         for peer_name in dejima_setting["peer_member"][dv_name]:
                             if peer_name != my_peer_name:
                                 payload = {
@@ -179,28 +184,25 @@ class ExecutionThreadForBase(threading.Thread):
                                         "view_update": update_json,
                                         "parent_peer": my_peer_name
                                         }
-                                logging.info(payload)
-                                logging.info(json.dumps(payload))
-                                requests.post(
+                                res = requests.post(
                                         'http://{}-proxy:8000/update_dejima_view'.format(peer_name),
                                         data = json.dumps(payload),
-                                        headers={'Content-Type': 'application/json'}
+                                        headers={'Content-Type': 'text/plain'}
                                         )
                                 self.ack_event_dict["{}:{}".format(dv_name, peer_name)] = threading.Event()
                                 self.ack_dict["{}:{}".format(dv_name, peer_name)] = "nak"
                                 peer_set.add(peer_name)
+                        logging.info("ExecutionThreadForBase: wait ack event")
                     for event in self.ack_event_dict.values():
                         event.wait()
-                        logging.info(self.ack_dict)
                 # phase 4 : check commitability ( surveying )
                 # PREPARE TRANSACTION is not available, so need to check this transaction commitable by yourself.
 
-                logging.info(self.ack_dict)
-                logging.info("for base, ack check")
-                logging.info("ack_dict.keys()".format(self.ack_dict.keys()))
+                # phase 5 : commit or abort according to all ack/nak from child, and send the instruction to child.
+                logging.info("Base: commit/abort, and sending that")
                 ack = True
                 for result in self.ack_dict.values():
-                    if result != "nak":
+                    if result != "ack":
                        ack = False 
                 if ack:
                     conn.commit()
@@ -212,7 +214,7 @@ class ExecutionThreadForBase(threading.Thread):
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
                                 data = json.dumps(payload),
-                                headers={'Content-Type': 'application/json'}
+                                headers={'Content-Type': 'text/plain'}
                                 )
                     logging.info("xid [{}] base execution thread finished. result->commit".format(self.source_xid))
                 else:
@@ -225,6 +227,6 @@ class ExecutionThreadForBase(threading.Thread):
                         requests.post(
                                 'http://{}-proxy:8000/commit_or_abort'.format(peer),
                                 data = json.dumps(payload),
-                                headers={'Content-Type': 'application/json'}
+                                headers={'Content-Type': 'text/plain'}
                                 )
                     logging.info("xid [{}] base execution thread finished. result->abort".format(self.source_xid))
