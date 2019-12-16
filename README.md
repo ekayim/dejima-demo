@@ -9,6 +9,7 @@
 	- method : POST
 	- params : sql_statements (string)
 	- url : /exec_transaction
+
 For example, using HTTPie:
 ```
 http post localhost:8001/exec_transaction sql_statements="INSERT INTO bank_users VALUES (1, 'John', 'Smith', 'IBAN', 'address', 'phone_number');"
