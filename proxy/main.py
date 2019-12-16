@@ -1,10 +1,6 @@
 from execution_thread import ExecutionThread
 import socket
 import logging
-import json
-import uuid
-import os
-import pdb
 
 logging.basicConfig(level=logging.DEBUG)
 thread_dict = {}
