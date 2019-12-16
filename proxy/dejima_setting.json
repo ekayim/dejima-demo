@@ -1,0 +1,24 @@
+{
+	"dejima_view":{
+		"bank": [
+			"dejima_bank"
+		],
+		"government":[
+			"dejima_bank",
+			"dejima_insurance"
+		],
+		"insurance":[
+			"dejima_insurance"
+		]
+	},
+	"peer_member":{
+		"dejima_bank": [
+			"bank",
+			"government"
+		],
+		"dejima_insurance": [
+			"government",
+			"insurance"
+		]
+	}
+}
