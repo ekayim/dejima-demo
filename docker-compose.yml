@@ -29,6 +29,8 @@ services:
       - dejima-net
     depends_on:
       - bank-postgres
+    stdin_open: true
+    tty: true
 
   government-postgres:
     image: ekayim/dejima-postgres:latest
@@ -59,7 +61,9 @@ services:
       - dejima-net
     depends_on:
       - government-postgres
-
+    stdin_open: true
+    tty: true
+    
   insurance-postgres:
     image: ekayim/dejima-postgres:latest
     container_name: insurance-postgres
@@ -89,6 +93,8 @@ services:
       - dejima-net
     depends_on:
       - insurance-postgres
+    stdin_open: true
+    tty: true
 
 networks:
   dejima-net:
