@@ -13,10 +13,10 @@ import requests
 # "update_json" : update contents for dejima view. json format str.
 
 class ExecutionThread(threading.Thread):
-    def __init__(self, conn, t_dict):
+    def __init__(self, conn, lock):
         threading.Thread.__init__(self)
         self.conn = conn
-        self.t_dict = t_dict
+        self.lock = lock
 
     def run(self):
         logging.info("ExecutionThread : start")
@@ -28,6 +28,7 @@ class ExecutionThread(threading.Thread):
 
         my_peer_name = os.environ['PEER_NAME']
 
+
         with psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name)) as db_conn:
             with db_conn.cursor() as cur:
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
@@ -36,6 +37,25 @@ class ExecutionThread(threading.Thread):
                 # phase1 : execute update for certain dejima view
                 try:
                     if url == "/exec_transaction" :
+                        if self.lock["lock"] == True:
+                            self.conn.send("HTTP/1.1 423 Locked".encode())
+                            self.conn.close()
+                            exit()
+                        else:
+                            self.lock["lock"] = True
+                            self.lock["holder"] = my_peer_name
+
+                        result = dejimautils.global_locking()
+                        logging.info("global_locking result: {}".format(result))
+                        if result == False:
+                            logging.info("couldn't get all locks. Release all locks and end this thread.")
+                            dejimautils.global_unlocking()
+                            self.conn.send("HTTP/1.1 423 Locked".encode())
+                            self.conn.close()
+                            self.lock["lock"] = False
+                            self.lock["holder"] = None
+                            exit()
+
                         thread_type = "base"
                         logging.info("execute update for dejima view ...")
                         cur.execute(params_dict["sql_statements"])
@@ -47,8 +67,33 @@ class ExecutionThread(threading.Thread):
                         view_name = view_name.replace("public.", "")
                         cur.execute(sql_for_dejima_view)
 
+                    elif url == "/lock":
+                        if self.lock["lock"] == False:
+                            self.lock["lock"] = True
+                            self.lock["holder"] = params_dict["holder"]
+                            self.conn.send("HTTP/1.1 200 OK".encode())
+                            self.conn.close()
+                            logging.info("locked")
+                            exit()
+                        else:
+                            logging.info("Request Blocked.")
+                            self.conn.send("HTTP/1.1 423 Locked".encode())
+                            self.conn.close()
+                            exit()
+                    
+                    elif url == "/unlock":
+                        logging.info("Lock holder: {}, Request peer: {}".format(self.lock["holder"], params_dict["holder"]))
+                        if self.lock["holder"] == params_dict["holder"]:
+                            self.lock["lock"] = False
+                            self.lock["holder"] = None
+                        self.conn.send("HTTP/1.1 200 OK".encode())
+                        self.conn.close()
+                        exit()
+
+
                     else:
                         self.conn.send("HTTP/1.1 404 Not Found".encode())
+                        self.conn.close()
                         exit()
 
                     # phase2 : detect update for other dejima view and member of the view.
@@ -80,7 +125,8 @@ class ExecutionThread(threading.Thread):
 
                     ack = True
 
-                except Exception :
+                except psycopg2.Error as e:
+                    logging.info("error: {}".format(e))
                     logging.info("Execption occurs. Abort start.")
                     ack = False
 
@@ -116,3 +162,6 @@ class ExecutionThread(threading.Thread):
                 if thread_type == "base":
                     self.conn.send("HTTP/1.1 200 OK".encode())
                 self.conn.close()
+
+                self.lock["lock"] = False
+                self.lock["holder"] = None
