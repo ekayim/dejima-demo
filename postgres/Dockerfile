@@ -1,5 +1,5 @@
 FROM postgres:11.2-alpine
-MAINTAINER miyake <miyake.kouta@ist.osaka-u.ac.jp>
+LABEL maintaner "miyake <miyake.kouta@ist.osaka-u.ac.jp>"
 
 RUN apk add --update --no-cache \
     build-base \
