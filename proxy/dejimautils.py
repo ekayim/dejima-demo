@@ -25,7 +25,7 @@ def convert_to_sql_from_json(json_data):
         for column, value in delete.items():
             if not value:
                 continue
-            where += "{}='{}' AND ".format(column)
+            where += "{}='{}' AND ".format(column, value)
         where = where[0:-4]
         sql_statements += "DELETE FROM {} WHERE {};\n".format(json_dict["view"], where)
 
