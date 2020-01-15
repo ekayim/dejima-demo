@@ -28,83 +28,68 @@ class ExecutionThread(threading.Thread):
 
         my_peer_name = os.environ['PEER_NAME']
 
-        with psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name)) as db_conn:
+        # switch statements for url
+        if url == "/lock":
+            if self.lock["lock"] == False:
+                self.lock["lock"] = True
+                self.lock["holder"] = params_dict["holder"]
+                logging.info("Accept Lock Request.")
+                self.conn.send("HTTP/1.1 200 OK".encode())
+            else:
+                logging.info("Request Blocked.")
+                self.conn.send("HTTP/1.1 423 Locked".encode())
+
+            self.conn.close()
+
+        elif url == "/unlock":
+            if self.lock["holder"] == params_dict["holder"]:
+                self.lock["lock"] = False
+                self.lock["holder"] = None
+            logging.info("Unlocked.")
+            self.conn.send("HTTP/1.1 200 OK".encode())
+            self.conn.close()
+
+        elif url == "/exec_transaction":
+            if self.lock["lock"] == True:
+                self.conn.send("HTTP/1.1 423 Locked".encode())
+                self.conn.close()
+                exit()
+            else:
+                self.lock["lock"] = True
+                self.lock["holder"] = my_peer_name
+
+            result = dejimautils.global_locking()
+            if result == False:
+                logging.info("couldn't get all locks. Release all locks and end this thread.")
+                dejimautils.global_unlocking()
+                self.conn.send("HTTP/1.1 423 Locked".encode())
+                self.conn.close()
+                self.lock["lock"] = False
+                self.lock["holder"] = None
+                exit()
+
+            logging.info("execute update for dejima view ...")
+            dejima_setting = {}
+            with open("/proxy/dejima_setting.json") as f:
+                dejima_setting = json.load(f)
+
+            child_result = [] 
+            child_conns = []
+
+            db_conn = psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name))
             with db_conn.cursor() as cur:
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
-
-                # phase1 : execute update for certain dejima view
                 try:
-                    if url == "/exec_transaction" :
-                        if self.lock["lock"] == True:
-                            self.conn.send("HTTP/1.1 423 Locked".encode())
-                            self.conn.close()
-                            exit()
-                        else:
-                            self.lock["lock"] = True
-                            self.lock["holder"] = my_peer_name
+                    # phase1 : execute update for base table.
+                    cur.execute(params_dict["sql_statements"])
 
-                        result = dejimautils.global_locking()
-                        logging.info("global_locking result: {}".format(result))
-                        if result == False:
-                            logging.info("couldn't get all locks. Release all locks and end this thread.")
-                            dejimautils.global_unlocking()
-                            self.conn.send("HTTP/1.1 423 Locked".encode())
-                            self.conn.close()
-                            self.lock["lock"] = False
-                            self.lock["holder"] = None
-                            exit()
-
-                        thread_type = "base"
-                        logging.info("execute update for dejima view ...")
-                        cur.execute(params_dict["sql_statements"])
-
-                    elif url == "/update_dejima_view":
-                        thread_type = "view"
-                        logging.info("execute update for base table...")
-                        view_name, sql_for_dejima_view = dejimautils.convert_to_sql_from_json(params_dict["view_update"])
-                        view_name = view_name.replace("public.", "")
-                        cur.execute(sql_for_dejima_view)
-
-                    elif url == "/lock":
-                        if self.lock["lock"] == False:
-                            self.lock["lock"] = True
-                            self.lock["holder"] = params_dict["holder"]
-                            self.conn.send("HTTP/1.1 200 OK".encode())
-                            self.conn.close()
-                            logging.info("locked")
-                            exit()
-                        else:
-                            logging.info("Request Blocked.")
-                            self.conn.send("HTTP/1.1 423 Locked".encode())
-                            self.conn.close()
-                            exit()
-                    
-                    elif url == "/unlock":
-                        logging.info("Lock holder: {}, Request peer: {}".format(self.lock["holder"], params_dict["holder"]))
-                        if self.lock["holder"] == params_dict["holder"]:
-                            self.lock["lock"] = False
-                            self.lock["holder"] = None
-                        self.conn.send("HTTP/1.1 200 OK".encode())
-                        self.conn.close()
-                        exit()
-
-
-                    else:
-                        self.conn.send("HTTP/1.1 404 Not Found".encode())
-                        self.conn.close()
-                        exit()
+                    # phase 1' : take a ticket
+                    cur.execute("UPDATE ticket set value=0 WHERE value=0")
 
                     # phase2 : detect update for other dejima view and member of the view.
-                    dejima_setting = {}
-                    with open("/proxy/dejima_setting.json") as f:
-                        dejima_setting = json.load(f)
                     dv_set_for_propagate = set(dejima_setting["dejima_view"][my_peer_name])
-                    if thread_type == "view":
-                        dv_set_for_propagate = dv_set_for_propagate - { view_name }
 
                     # phase 3 : propagate update for child peer
-                    child_result = [] 
-                    child_conns = []
                     if dv_set_for_propagate:
                         # phase3-2 : propagate dejima view update
                         thread_list = []
@@ -120,46 +105,119 @@ class ExecutionThread(threading.Thread):
                         logging.info("wait ack from child")
                         for thread in thread_list:
                             thread.join()
-
                     ack = True
-
                 except psycopg2.Error as e:
                     logging.info("error: {}".format(e))
                     logging.info("Execption occurs. Abort start.")
                     ack = False
 
-                # check ack/nak from children.
-                commit_or_abort = "commit"
-                for result in child_result:
-                    if result != "200" :
-                        ack = False
+            # check ack/nak from children.
+            commit_or_abort = "commit"
+            for result in child_result:
+                if result != "200" :
+                    commit_or_abort = "abort"
+            if ack == False:
+                commit_or_abort = "abort"
 
-                if thread_type == "view":
-                    if ack:
-                        self.conn.send("HTTP/1.1 200 OK".encode())
-                    else:
-                        self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
+            # phase 7 : commit or abort
+            if commit_or_abort == "commit":
+                db_conn.commit()
+                for s in child_conns:
+                    s.sendall("commit".encode())
+                    s.close()
+                logging.info("execution thread finished : commit")
+            elif commit_or_abort == "abort":
+                db_conn.abort()
+                for s in child_conns:
+                    s.sendall("abort".encode())
+                    s.close()
+                logging.info("execution thread finished : abort")
 
-                    logging.info("wait commit/abort")
-                    commit_or_abort = self.conn.recv(1024).decode()
+            self.conn.send("HTTP/1.1 200 OK".encode())
+            db_conn.close()
+            self.conn.close()
 
-                # phase 7 : commit or abort
-                if commit_or_abort == "commit":
-                    db_conn.commit()
-                    for s in child_conns:
-                        s.sendall("commit".encode())
-                        s.close()
-                    logging.info("execution thread finished : commit")
-                elif commit_or_abort == "abort":
-                    db_conn.abort()
-                    for s in child_conns:
-                        s.sendall("abort".encode())
-                        s.close()
-                    logging.info("execution thread finished : abort")
+            self.lock["lock"] = False
+            self.lock["holder"] = None
 
-                if thread_type == "base":
-                    self.conn.send("HTTP/1.1 200 OK".encode())
-                self.conn.close()
+        elif url == "/update_dejima_view":
 
-                self.lock["lock"] = False
-                self.lock["holder"] = None
+            logging.info("execute update for base table...")
+            dejima_setting = {}
+            with open("/proxy/dejima_setting.json") as f:
+                dejima_setting = json.load(f)
+            view_name, sql_for_dejima_view = dejimautils.convert_to_sql_from_json(params_dict["view_update"])
+            view_name = view_name.replace("public.", "")
+
+            child_result = [] 
+            child_conns = []
+
+            db_conn = psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name))
+            with db_conn.cursor() as cur:
+                try:
+                    # phase1 : execute update for certain dejima view
+                    cur.execute(sql_for_dejima_view)
+
+                    # phase2 : detect update for other dejima view and member of the view.
+                    dv_set_for_propagate = set(dejima_setting["dejima_view"][my_peer_name])
+                    dv_set_for_propagate = dv_set_for_propagate - { view_name }
+
+                    # phase 3 : propagate update for child peer
+                    if dv_set_for_propagate:
+                        # phase3-2 : propagate dejima view update
+                        thread_list = []
+                        for dv_name in dv_set_for_propagate:
+                            cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
+                            update_json, *_ = cur.fetchone()
+                            for peer_name in dejima_setting["peer_member"][dv_name]:
+                                if peer_name != my_peer_name:
+                                    t = threading.Thread(target=dejimautils.send_json_for_child, args=(update_json, peer_name, child_result, child_conns))
+                                    t.start()
+                                    thread_list.append(t)
+                        logging.info("wait ack from child")
+                        for thread in thread_list:
+                            thread.join()
+                    ack = True
+                except psycopg2.Error as e:
+                    logging.info("error: {}".format(e))
+                    logging.info("Execption occurs. Abort start.")
+                    ack = False
+
+            # check ack/nak from children.
+            for result in child_result:
+                if result != "200" :
+                    ack = False
+                    break
+
+            if ack:
+                self.conn.send("HTTP/1.1 200 OK".encode())
+            else:
+                self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
+
+            logging.info("wait commit/abort")
+            commit_or_abort = self.conn.recv(1024).decode()
+
+            # phase 7 : commit or abort
+            if commit_or_abort == "commit":
+                db_conn.commit()
+                for s in child_conns:
+                    s.sendall("commit".encode())
+                    s.close()
+                logging.info("execution thread finished : commit")
+            elif commit_or_abort == "abort":
+                db_conn.abort()
+                for s in child_conns:
+                    s.sendall("abort".encode())
+                    s.close()
+                logging.info("execution thread finished : abort")
+
+            db_conn.close()
+            self.conn.close()
+
+            self.lock["lock"] = False
+            self.lock["holder"] = None
+
+        else:
+            self.conn.send("HTTP/1.1 404 Not Found".encode())
+            self.conn.close()
+            exit()
