@@ -29,7 +29,6 @@ class ExecutionThread(threading.Thread):
 
         # switch statements for url
         if url == "/exec_transaction":
-            thread_type = "base"
             logging.info("execute update for dejima view ...")
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
@@ -100,7 +99,6 @@ class ExecutionThread(threading.Thread):
             self.conn.close()
 
         elif url == "/update_dejima_view":
-            thread_type = "view"
             logging.info("execute update for base table...")
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
