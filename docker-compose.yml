@@ -10,9 +10,9 @@ services:
     environment:
       - PEER_NAME=bank
     volumes:
-      - ./docker-postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./docker-postgres/init:/docker-entrypoint-initdb.d/
-      - ./docker-postgres/bx_setup:/etc/bx_setup
+      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+      - ./postgres/init:/docker-entrypoint-initdb.d/
+      - ./postgres/bx_setup:/etc/bx_setup
 
 
   bank-proxy:
@@ -25,6 +25,7 @@ services:
     environment:
       - PEER_NAME=bank
       - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+      - CC_METHOD=ticket
     networks:
       - dejima-net
     depends_on:
@@ -42,9 +43,9 @@ services:
     environment:
       - PEER_NAME=government
     volumes:
-      - ./docker-postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./docker-postgres/init:/docker-entrypoint-initdb.d/
-      - ./docker-postgres/bx_setup:/etc/bx_setup
+      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+      - ./postgres/init:/docker-entrypoint-initdb.d/
+      - ./postgres/bx_setup:/etc/bx_setup
 
 
   government-proxy:
@@ -57,6 +58,7 @@ services:
     environment:
       - PEER_NAME=government
       - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+      - CC_METHOD=ticket
     networks:
       - dejima-net
     depends_on:
@@ -74,9 +76,9 @@ services:
     environment:
       - PEER_NAME=insurance
     volumes:
-      - ./docker-postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./docker-postgres/init:/docker-entrypoint-initdb.d/
-      - ./docker-postgres/bx_setup:/etc/bx_setup
+      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+      - ./postgres/init:/docker-entrypoint-initdb.d/
+      - ./postgres/bx_setup:/etc/bx_setup
 
 
   insurance-proxy:
@@ -89,6 +91,7 @@ services:
     environment:
       - PEER_NAME=insurance
       - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+      - CC_METHOD=ticket
     networks:
       - dejima-net
     depends_on:

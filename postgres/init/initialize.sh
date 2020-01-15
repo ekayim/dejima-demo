@@ -8,3 +8,5 @@ do
   psql -f $file
   echo "psql -f $file : completed"
 done
+
+psql -U postgres -c "CREATE TABLE ticket ( VALUE	int ); INSERT INTO ticket VALUES (0);"

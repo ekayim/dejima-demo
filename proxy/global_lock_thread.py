@@ -28,7 +28,6 @@ class ExecutionThread(threading.Thread):
 
         my_peer_name = os.environ['PEER_NAME']
 
-
         with psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name)) as db_conn:
             with db_conn.cursor() as cur:
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
@@ -132,7 +131,7 @@ class ExecutionThread(threading.Thread):
                 # check ack/nak from children.
                 commit_or_abort = "commit"
                 for result in child_result:
-                    if result != requests.codes.ok :
+                    if result != "200" :
                         ack = False
 
                 if thread_type == "view":
