@@ -115,6 +115,9 @@ class ExecutionThread(threading.Thread):
                     # phase1 : execute update for certain dejima view
                     cur.execute(sql_for_dejima_view)
 
+                    # phase 1' : take a ticket
+                    cur.execute("UPDATE ticket set value=0 WHERE value=0")
+
                     # phase2 : detect update for other dejima view and member of the view.
                     dv_set_for_propagate = set(dejima_setting["dejima_view"][my_peer_name])
                     dv_set_for_propagate = dv_set_for_propagate - { view_name }
