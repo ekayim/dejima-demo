@@ -14,4 +14,3 @@ RUN git clone https://github.com/petere/plsh \
   && make && make install
 
 CMD ["postgres", "-c", "config_file=/etc/postgresql.conf"]
-

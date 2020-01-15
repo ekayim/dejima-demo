@@ -7,4 +7,3 @@ RUN pip install psycopg2-binary
 RUN pip install requests
 
 CMD ["python", "/proxy/main.py"]
-
