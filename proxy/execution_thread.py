@@ -32,7 +32,6 @@ class ExecutionThread(threading.Thread):
         with psycopg2.connect("dbname=postgres user=dejima password=barfoo host={}-postgres port=5432".format(my_peer_name)) as db_conn:
             with db_conn.cursor() as cur:
                 # note : in psycopg2, transaction is valid as default, so no need to exec "BEGIN;"
-                exec_result = []
 
                 # phase1 : execute update for certain dejima view
                 try:
