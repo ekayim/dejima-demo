@@ -16,7 +16,7 @@ if [ $# -eq 2 ]; then
   elif [ $1 = "government" ]; then
     http POST localhost:8002/exec_transaction sql_statements="INSERT INTO government_users VALUES ($2, 'f$2', 'l$2', 'p$2', 'a$2', 'b$2');"
   elif [ $1 = "insurance" ]; then 
-    bttp POST localhost:8003/exec_transaction sql_statements="INSERT INTO insurance_users VALUES ($2, 'f$2', 'l$2', 'i$2', 'a$2', 'b$2');"
+    http POST localhost:8003/exec_transaction sql_statements="INSERT INTO insurance_users VALUES ($2, 'f$2', 'l$2', 'i$2', 'a$2', 'b$2');"
   fi
 else
   echo -e "usage: ./request.sh peer_name num"

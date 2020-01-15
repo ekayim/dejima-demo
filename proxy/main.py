@@ -3,7 +3,7 @@ import socket
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-thread_dict = {}
+lock = {"lock": False, "holder": None}
 
 # pdb.set_trace()
 
@@ -13,5 +13,5 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.listen(5)
     while True:
         conn, _ = s.accept()
-        t = ExecutionThread(conn, thread_dict)
+        t = ExecutionThread(conn, lock)
         t.start()
