@@ -88,7 +88,7 @@ class ExecutionThread(threading.Thread):
                     s.close()
                 logging.info("execution thread finished : commit")
             elif commit_or_abort == "abort":
-                db_conn.abort()
+                db_conn.rollback()
                 for s in child_conns:
                     s.sendall("abort".encode())
                     s.close()
@@ -162,7 +162,7 @@ class ExecutionThread(threading.Thread):
                     s.close()
                 logging.info("execution thread finished : commit")
             elif commit_or_abort == "abort":
-                db_conn.abort()
+                db_conn.rollback()
                 for s in child_conns:
                     s.sendall("abort".encode())
                     s.close()
