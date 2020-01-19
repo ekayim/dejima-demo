@@ -1,6 +1,7 @@
 import json
 import socket
 import os
+import threading
 
 def convert_to_sql_from_json(json_data):
     # arg : json_data from other peer
@@ -47,6 +48,18 @@ def send_json_for_child(json_data, peer_name, child_result, child_conns):
     child_result.append(status_code)
     child_conns.append(s)
 
+def send_lock_request(result_list, peer_name, my_peer_name):
+    target, *_ = socket.getaddrinfo(peer_name+"-proxy", 8000)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(target[4])
+    payload = {"holder": my_peer_name}
+    request = "POST /lock HTTP/1.1\r\n\r\n" + json.dumps(payload)
+    s.sendall(request.encode())
+    res = s.recv(1024).decode()
+    status_code = res.split()[1]
+    s.close()
+    result_list.append(status_code)
+
 def global_locking():
     my_peer_name = os.environ['PEER_NAME']
 
@@ -54,20 +67,20 @@ def global_locking():
     with open("/proxy/dejima_setting.json") as f:
         dejima_setting = json.load(f)
 
+    thread_list = []
+    result_list = []
+    result = True
     for peer_name in dejima_setting["dejima_participants"]:
         if peer_name != my_peer_name:
-            target, *_ = socket.getaddrinfo(peer_name+"-proxy", 8000)
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(target[4])
-            payload = {"holder": my_peer_name}
-            request = "POST /lock HTTP/1.1\r\n\r\n" + json.dumps(payload)
-            s.sendall(request.encode())
-            res = s.recv(1024).decode()
-            status_code = res.split()[1]
-            s.close()
+            t = threading.Thread(target=send_lock_request, args=[result_list, peer_name, my_peer_name])
+            thread_list.append(t)
+            t.start()
+    for thread in thread_list:
+        thread.join()
 
-            if status_code == "423":
-                return False
+    for result in result_list:
+        if result != "200":
+            return False
 
     return True
 
