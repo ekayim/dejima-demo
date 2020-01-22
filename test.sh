@@ -1,5 +1,5 @@
 #!/bin/zsh
 for i in `seq 0 99`
 do
-  ./request.sh bank $i
+  http POST localhost:8001/exec_transaction sql_statements="INSERT INTO s VALUES ($i, $i, $i);"
 done
