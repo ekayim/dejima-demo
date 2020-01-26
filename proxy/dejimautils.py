@@ -6,7 +6,7 @@ import threading
 def convert_to_sql_from_json(json_data):
     # arg : json_data from other peer
     # output : view name(str) , sql statements for view(str)
-    sql_statements = ""
+    sql_statements = []
     json_dict = json.loads(json_data)
     for insert in json_dict["insertions"]:
         columns = "("
@@ -19,7 +19,7 @@ def convert_to_sql_from_json(json_data):
                 values += "'{}', ".format(value)
         columns = columns[0:-2] + ")"
         values = values[0:-2] + ")"
-        sql_statements += "INSERT INTO {} {} VALUES {};\n".format(json_dict["view"], columns, values)
+        sql_statements.append("INSERT INTO {} {} VALUES {};".format(json_dict["view"], columns, values))
 
     for delete in json_dict["deletions"]:
         where = ""
@@ -28,7 +28,7 @@ def convert_to_sql_from_json(json_data):
                 continue
             where += "{}='{}' AND ".format(column, value)
         where = where[0:-4]
-        sql_statements += "DELETE FROM {} WHERE {};\n".format(json_dict["view"], where)
+        sql_statements.append("DELETE FROM {} WHERE {};".format(json_dict["view"], where))
 
     return json_dict["view"], sql_statements
 
@@ -59,6 +59,16 @@ def send_lock_request(result_list, peer_name, my_peer_name):
     status_code = res.split()[1]
     s.close()
     result_list.append(status_code)
+
+def send_unlock_request(peer_name, my_peer_name):
+    target, *_ = socket.getaddrinfo(peer_name+"-proxy", 8000)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(target[4])
+    payload = {"holder": my_peer_name}
+    request = "POST /unlock HTTP/1.1\r\n\r\n" + json.dumps(payload)
+    s.sendall(request.encode())
+    s.recv(1024)
+    s.close()
 
 def global_locking():
     my_peer_name = os.environ['PEER_NAME']
@@ -91,12 +101,11 @@ def global_unlocking():
     with open("/proxy/dejima_setting.json") as f:
         dejima_setting = json.load(f)
 
+    thread_list = []
     for peer_name in dejima_setting["dejima_participants"]:
         if peer_name != my_peer_name:
-            target, *_ = socket.getaddrinfo(peer_name+"-proxy", 8000)
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(target[4])
-            payload = {"holder": my_peer_name}
-            request = "POST /unlock HTTP/1.1\r\n\r\n" + json.dumps(payload)
-            s.sendall(request.encode())
-            s.close()
+            t = threading.Thread(target=send_unlock_request, args=[peer_name, my_peer_name])
+            thread_list.append(t)
+            t.start()
+    for thread in thread_list:
+        thread.join()

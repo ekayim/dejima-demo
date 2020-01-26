@@ -124,21 +124,27 @@ class ExecutionThread(threading.Thread):
                 db_conn.commit()
                 for s in child_conns:
                     s.sendall("commit".encode())
+                    s.recv(1024)
                     s.close()
-                logging.info("execution thread finished : commit")
+                end_message = "execution thread finished : commit"
             elif commit_or_abort == "abort":
                 db_conn.rollback()
                 for s in child_conns:
                     s.sendall("abort".encode())
+                    s.recv(1024)
                     s.close()
-                logging.info("execution thread finished : abort")
+                end_message = "execution thread finished : abort"
+
+            dejimautils.global_unlocking()
+            self.lock["lock"] = False
+            self.lock["holder"] = None
+
+            logging.info(end_message)
 
             self.conn.send("HTTP/1.1 200 OK".encode())
             db_conn.close()
             self.conn.close()
 
-            self.lock["lock"] = False
-            self.lock["holder"] = None
 
         elif url == "/update_dejima_view":
 
@@ -156,7 +162,10 @@ class ExecutionThread(threading.Thread):
             with db_conn.cursor() as cur:
                 try:
                     # phase1 : execute update for certain dejima view
-                    cur.execute(sql_for_dejima_view)
+                    logging.info("sql_for_dejima_view {}".format(sql_for_dejima_view))
+                    for statement in sql_for_dejima_view:
+                        logging.info("sql statement: {}".format(statement))
+                        cur.execute(statement)
 
                     # phase2 : detect update for other dejima view and member of the view.
                     dv_set_for_propagate = set(dejima_setting["dejima_view"][my_peer_name])
@@ -169,6 +178,7 @@ class ExecutionThread(threading.Thread):
                         for dv_name in dv_set_for_propagate:
                             cur.execute("SELECT non_trigger_{}_detect_update();".format(dv_name))
                             update_json, *_ = cur.fetchone()
+                            if update_json == None: continue
                             for peer_name in dejima_setting["peer_member"][dv_name]:
                                 if peer_name != my_peer_name:
                                     t = threading.Thread(target=dejimautils.send_json_for_child, args=(update_json, peer_name, child_result, child_conns))
@@ -202,20 +212,21 @@ class ExecutionThread(threading.Thread):
                 db_conn.commit()
                 for s in child_conns:
                     s.sendall("commit".encode())
+                    s.recv(1024)
                     s.close()
+                self.conn.sendall("ack".encode())
                 logging.info("execution thread finished : commit")
             elif commit_or_abort == "abort":
                 db_conn.rollback()
                 for s in child_conns:
                     s.sendall("abort".encode())
+                    s.recv(1024)
                     s.close()
+                self.conn.sendall("ack".encode())
                 logging.info("execution thread finished : abort")
 
             db_conn.close()
             self.conn.close()
-
-            self.lock["lock"] = False
-            self.lock["holder"] = None
 
         else:
             self.conn.send("HTTP/1.1 404 Not Found".encode())
