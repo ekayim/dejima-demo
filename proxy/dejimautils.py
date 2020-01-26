@@ -13,7 +13,7 @@ def convert_to_sql_from_json(json_data):
         values = "("
         for column, value in insert.items():
             columns += "{}, ".format(column)
-            if not value:
+            if not value and value != 0:
                 values += "NULL, "
             else:
                 values += "'{}', ".format(value)
@@ -24,7 +24,7 @@ def convert_to_sql_from_json(json_data):
     for delete in json_dict["deletions"]:
         where = ""
         for column, value in delete.items():
-            if not value:
+            if not value and value != 0:
                 continue
             where += "{}='{}' AND ".format(column, value)
         where = where[0:-4]

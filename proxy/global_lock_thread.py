@@ -45,7 +45,7 @@ class ExecutionThread(threading.Thread):
             if self.lock["holder"] == params_dict["holder"]:
                 self.lock["lock"] = False
                 self.lock["holder"] = None
-            logging.info("Unlocked.")
+                logging.info("Unlocked.")
             self.conn.send("HTTP/1.1 200 OK".encode())
             self.conn.close()
 
@@ -141,7 +141,11 @@ class ExecutionThread(threading.Thread):
 
             logging.info(end_message)
 
-            self.conn.send("HTTP/1.1 200 OK".encode())
+            if commit_or_abort == "commit":
+                self.conn.send("HTTP/1.1 200 OK".encode())
+            elif commit_or_abort == "abort":
+                self.conn.send("HTTP/1.1 423 Locked".encode())
+
             db_conn.close()
             self.conn.close()
 

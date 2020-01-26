@@ -179,7 +179,7 @@ temprecΔ_ins_s public.s%ROWTYPE;
             FROM (SELECT Δ_del_s_a2_0.COL0 AS COL0, Δ_del_s_a2_0.COL1 AS COL1 
 FROM (SELECT s_a2_0.ID AS COL0, s_a2_0.VALUE AS COL1 
 FROM public.s AS s_a2_0 
-WHERE NOT EXISTS ( SELECT * 
+WHERE s_a2_0.ID = 'A' AND NOT EXISTS ( SELECT * 
 FROM (SELECT d_23_a2_0.ID AS COL0, d_23_a2_0.VALUE AS COL1 
 FROM public.d_23 AS d_23_a2_0 
 WHERE NOT EXISTS ( SELECT * 
@@ -197,7 +197,7 @@ WHERE NOT EXISTS ( SELECT *
 FROM __temp__Δ_del_d_23 AS __temp__Δ_del_d_23_a2 
 WHERE __temp__Δ_del_d_23_a2.VALUE = d_23_a2_0.VALUE AND __temp__Δ_del_d_23_a2.ID = d_23_a2_0.ID )  UNION SELECT __temp__Δ_ins_d_23_a2_0.ID AS COL0, __temp__Δ_ins_d_23_a2_0.VALUE AS COL1 
 FROM __temp__Δ_ins_d_23 AS __temp__Δ_ins_d_23_a2_0  ) AS new_d_23_a2_0 
-WHERE NOT EXISTS ( SELECT * 
+WHERE new_d_23_a2_0.COL0 = 'A' AND NOT EXISTS ( SELECT * 
 FROM public.s AS s_a2 
 WHERE s_a2.VALUE = new_d_23_a2_0.COL1 AND s_a2.ID = new_d_23_a2_0.COL0 ) ) AS Δ_ins_s_a2_0  ) AS Δ_ins_s_extra_alia 
             EXCEPT 
@@ -266,7 +266,7 @@ AS $$
         CREATE TEMPORARY TABLE __temp__Δ_ins_d_23 ( LIKE public.d_23 INCLUDING ALL ) WITH OIDS ON COMMIT DROP;
         CREATE CONSTRAINT TRIGGER __temp__d_23_trigger_delta_action
         AFTER INSERT OR UPDATE OR DELETE ON 
-            __temp__Δ_ins_d_23 DEFERRABLE INITIALLY IMMEDIATE 
+            __temp__Δ_ins_d_23 DEFERRABLE INITIALLY IMMEDIATE
             FOR EACH ROW EXECUTE PROCEDURE public.d_23_delta_action();
 
         CREATE TEMPORARY TABLE __temp__Δ_del_d_23 ( LIKE public.d_23 INCLUDING ALL ) WITH OIDS ON COMMIT DROP;
