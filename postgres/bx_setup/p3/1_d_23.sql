@@ -5,40 +5,131 @@ FROM (SELECT s_a2_0.ID AS COL0, s_a2_0.VALUE AS COL1
 FROM public.s AS s_a2_0 
 WHERE s_a2_0.ID = 'A' ) AS d_23_a2_0  ) AS __dummy__;
 
-DROP MATERIALIZED VIEW IF EXISTS public.__dummy__materialized_d_23;
-
-CREATE  MATERIALIZED VIEW public.__dummy__materialized_d_23 AS 
-SELECT * FROM public.d_23;
-
 CREATE EXTENSION IF NOT EXISTS plsh;
 
 CREATE OR REPLACE FUNCTION public.d_23_run_shell(text) RETURNS text AS $$
 #!/bin/sh
 echo "true"
 $$ LANGUAGE plsh;
-CREATE OR REPLACE FUNCTION public.d_23_detect_update()
+
+CREATE OR REPLACE FUNCTION public.s_materialization()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+text_var1 text;
+text_var2 text;
+text_var3 text;
+BEGIN
+    IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = '__temp__Δ_ins_s' OR table_name = '__temp__Δ_del_s')
+    THEN
+        -- RAISE LOG 'execute procedure s_materialization';
+        CREATE TEMPORARY TABLE __temp__Δ_ins_s ( LIKE public.s INCLUDING ALL ) WITH OIDS ON COMMIT DROP;
+        CREATE TEMPORARY TABLE __temp__Δ_del_s ( LIKE public.s INCLUDING ALL ) WITH OIDS ON COMMIT DROP;
+        CREATE TEMPORARY TABLE __temp__s WITH OIDS ON COMMIT DROP AS (SELECT * FROM public.s);
+        
+    END IF;
+    RETURN NULL;
+EXCEPTION
+    WHEN object_not_in_prerequisite_state THEN
+        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to public.s';
+    WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS text_var1 = RETURNED_SQLSTATE,
+                                text_var2 = PG_EXCEPTION_DETAIL,
+                                text_var3 = MESSAGE_TEXT;
+        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the trigger of public.s ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
+        RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS s_trigger_materialization ON public.s;
+CREATE TRIGGER s_trigger_materialization
+    BEFORE INSERT OR UPDATE OR DELETE ON
+    public.s FOR EACH STATEMENT EXECUTE PROCEDURE public.s_materialization();
+
+CREATE OR REPLACE FUNCTION public.s_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+text_var1 text;
+text_var2 text;
+text_var3 text;
+BEGIN
+    -- RAISE LOG 'execute procedure s_update';
+    IF TG_OP = 'INSERT' THEN
+    -- RAISE LOG 'NEW: %', NEW;
+    IF (SELECT count(*) FILTER (WHERE j.value = jsonb 'null') FROM  jsonb_each(to_jsonb(NEW)) j) > 0 THEN 
+        RAISE check_violation USING MESSAGE = 'Invalid update: null value is not accepted';
+    END IF;
+    DELETE FROM __temp__Δ_del_s WHERE ROW(ID,VALUE) = NEW;
+    INSERT INTO __temp__Δ_ins_s SELECT (NEW).*; 
+    ELSIF TG_OP = 'UPDATE' THEN
+    IF (SELECT count(*) FILTER (WHERE j.value = jsonb 'null') FROM  jsonb_each(to_jsonb(NEW)) j) > 0 THEN 
+        RAISE check_violation USING MESSAGE = 'Invalid update: null value is not accepted';
+    END IF;
+    DELETE FROM __temp__Δ_ins_s WHERE ROW(ID,VALUE) = OLD;
+    INSERT INTO __temp__Δ_del_s SELECT (OLD).*;
+    DELETE FROM __temp__Δ_del_s WHERE ROW(ID,VALUE) = NEW;
+    INSERT INTO __temp__Δ_ins_s SELECT (NEW).*; 
+    ELSIF TG_OP = 'DELETE' THEN
+    -- RAISE LOG 'OLD: %', OLD;
+    DELETE FROM __temp__Δ_ins_s WHERE ROW(ID,VALUE) = OLD;
+    INSERT INTO __temp__Δ_del_s SELECT (OLD).*;
+    END IF;
+    RETURN NULL;
+EXCEPTION
+    WHEN object_not_in_prerequisite_state THEN
+        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to public.s';
+    WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS text_var1 = RETURNED_SQLSTATE,
+                                text_var2 = PG_EXCEPTION_DETAIL,
+                                text_var3 = MESSAGE_TEXT;
+        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the trigger of public.s ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
+        RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS s_trigger_update ON public.s;
+CREATE TRIGGER s_trigger_update
+    AFTER INSERT OR UPDATE OR DELETE ON
+    public.s FOR EACH ROW EXECUTE PROCEDURE public.s_update();
+
+CREATE OR REPLACE FUNCTION public.s_detect_update_on_d_23()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-  DECLARE
-  text_var1 text;
-  text_var2 text;
-  text_var3 text;
-  func text;
-  tv text;
-  deletion_data text;
-  insertion_data text;
-  json_data text;
-  result text;
-  user_name text;
-  BEGIN
-  IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'd_23_delta_action_flag') THEN
-    insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM public.d_23 EXCEPT SELECT * FROM public.__dummy__materialized_d_23) as t);
+DECLARE
+text_var1 text;
+text_var2 text;
+text_var3 text;
+func text;
+tv text;
+deletion_data text;
+insertion_data text;
+json_data text;
+result text;
+user_name text;
+BEGIN
+IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'd_23_delta_action_flag') THEN
+    insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT __dummy__.COL0 AS ID,__dummy__.COL1 AS VALUE 
+FROM (SELECT ∂_ins_d_23_a2_0.COL0 AS COL0, ∂_ins_d_23_a2_0.COL1 AS COL1 
+FROM (SELECT p_0_a2_0.COL0 AS COL0, p_0_a2_0.COL1 AS COL1 
+FROM (SELECT __temp__Δ_ins_s_a2_0.ID AS COL0, __temp__Δ_ins_s_a2_0.VALUE AS COL1 
+FROM __temp__Δ_ins_s AS __temp__Δ_ins_s_a2_0 
+WHERE __temp__Δ_ins_s_a2_0.ID = 'A' ) AS p_0_a2_0  ) AS ∂_ins_d_23_a2_0  ) AS __dummy__) as t);
     IF insertion_data IS NOT DISTINCT FROM NULL THEN 
         insertion_data := '[]';
     END IF; 
-    deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM public.__dummy__materialized_d_23 EXCEPT SELECT * FROM public.d_23) as t);
+    deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT __dummy__.COL0 AS ID,__dummy__.COL1 AS VALUE 
+FROM (SELECT ∂_del_d_23_a2_0.COL0 AS COL0, ∂_del_d_23_a2_0.COL1 AS COL1 
+FROM (SELECT p_0_a2_0.COL0 AS COL0, p_0_a2_0.COL1 AS COL1 
+FROM (SELECT __temp__Δ_del_s_a2_0.ID AS COL0, __temp__Δ_del_s_a2_0.VALUE AS COL1 
+FROM __temp__Δ_del_s AS __temp__Δ_del_s_a2_0 
+WHERE __temp__Δ_del_s_a2_0.ID = 'A' ) AS p_0_a2_0  ) AS ∂_del_d_23_a2_0  ) AS __dummy__) as t);
     IF deletion_data IS NOT DISTINCT FROM NULL THEN 
         deletion_data := '[]';
     END IF; 
@@ -48,14 +139,9 @@ AS $$
             json_data := concat('{"view": ' , '"public.d_23"', ', ' , '"insertions": ' , insertion_data , ', ' , '"deletions": ' , deletion_data , '}');
             result := public.d_23_run_shell(json_data);
             IF result = 'true' THEN 
-                REFRESH MATERIALIZED VIEW public.__dummy__materialized_d_23;
-                FOR func IN (select distinct trigger_schema||'.non_trigger_'||substring(action_statement, 19) as function 
-                from information_schema.triggers where trigger_schema = 'public' and event_object_table='d_23'
-                and action_timing='AFTER' and (event_manipulation='INSERT' or event_manipulation='DELETE' or event_manipulation='UPDATE')
-                and action_statement like 'EXECUTE PROCEDURE %') 
-                LOOP
-                    EXECUTE 'SELECT ' || func into tv;
-                END LOOP;
+                DROP TABLE __temp__Δ_ins_s;
+                DROP TABLE __temp__Δ_del_s;
+                DROP TABLE __temp__s;
             ELSE
                 -- RAISE LOG 'result from running the sh script: %', result;
                 RAISE check_violation USING MESSAGE = 'update on view is rejected by the external tool, result from running the sh script: ' 
@@ -65,43 +151,53 @@ AS $$
             RAISE LOG 'function of detecting dejima update is called by % , no request sent to dejima proxy', user_name;
         END IF;
     END IF;
-  END IF;
-  RETURN NULL;
-  EXCEPTION
+END IF;
+RETURN NULL;
+EXCEPTION
     WHEN object_not_in_prerequisite_state THEN
-        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to source relations of public.d_23';
+        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to public.s';
     WHEN OTHERS THEN
         GET STACKED DIAGNOSTICS text_var1 = RETURNED_SQLSTATE,
                                 text_var2 = PG_EXCEPTION_DETAIL,
                                 text_var3 = MESSAGE_TEXT;
-        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the function (non_trigger_)public.d_23_detect_update() ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
+        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the function public.s_detect_update_on_d_23() ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
         RETURN NULL;
-  END;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.non_trigger_d_23_detect_update()
-RETURNS text 
+RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-  DECLARE
-  text_var1 text;
-  text_var2 text;
-  text_var3 text;
-  func text;
-  tv text;
-  deletion_data text;
-  insertion_data text;
-  json_data text;
-  result text;
-  user_name text;
-  BEGIN
-  IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'd_23_delta_action_flag') THEN
-    insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM public.d_23 EXCEPT SELECT * FROM public.__dummy__materialized_d_23) as t);
+DECLARE
+text_var1 text;
+text_var2 text;
+text_var3 text;
+func text;
+tv text;
+deletion_data text;
+insertion_data text;
+json_data text;
+result text;
+user_name text;
+BEGIN
+IF NOT EXISTS (SELECT * FROM information_schema.tables WHERE table_name = 'd_23_delta_action_flag') THEN
+    insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT __dummy__.COL0 AS ID,__dummy__.COL1 AS VALUE 
+FROM (SELECT ∂_ins_d_23_a2_0.COL0 AS COL0, ∂_ins_d_23_a2_0.COL1 AS COL1 
+FROM (SELECT p_0_a2_0.COL0 AS COL0, p_0_a2_0.COL1 AS COL1 
+FROM (SELECT __temp__Δ_ins_s_a2_0.ID AS COL0, __temp__Δ_ins_s_a2_0.VALUE AS COL1 
+FROM __temp__Δ_ins_s AS __temp__Δ_ins_s_a2_0 
+WHERE __temp__Δ_ins_s_a2_0.ID = 'A' ) AS p_0_a2_0  ) AS ∂_ins_d_23_a2_0  ) AS __dummy__) as t);
     IF insertion_data IS NOT DISTINCT FROM NULL THEN 
         insertion_data := '[]';
     END IF; 
-    deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM public.__dummy__materialized_d_23 EXCEPT SELECT * FROM public.d_23) as t);
+    deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT __dummy__.COL0 AS ID,__dummy__.COL1 AS VALUE 
+FROM (SELECT ∂_del_d_23_a2_0.COL0 AS COL0, ∂_del_d_23_a2_0.COL1 AS COL1 
+FROM (SELECT p_0_a2_0.COL0 AS COL0, p_0_a2_0.COL1 AS COL1 
+FROM (SELECT __temp__Δ_del_s_a2_0.ID AS COL0, __temp__Δ_del_s_a2_0.VALUE AS COL1 
+FROM __temp__Δ_del_s AS __temp__Δ_del_s_a2_0 
+WHERE __temp__Δ_del_s_a2_0.ID = 'A' ) AS p_0_a2_0  ) AS ∂_del_d_23_a2_0  ) AS __dummy__) as t);
     IF deletion_data IS NOT DISTINCT FROM NULL THEN 
         deletion_data := '[]';
     END IF; 
@@ -111,14 +207,9 @@ AS $$
             json_data := concat('{"view": ' , '"public.d_23"', ', ' , '"insertions": ' , insertion_data , ', ' , '"deletions": ' , deletion_data , '}');
             -- result := public.d_23_run_shell(json_data);
             -- IF result = 'true' THEN 
-                REFRESH MATERIALIZED VIEW public.__dummy__materialized_d_23;
-                FOR func IN (select distinct trigger_schema||'.non_trigger_'||substring(action_statement, 19) as function 
-                from information_schema.triggers where trigger_schema = 'public' and event_object_table='d_23'
-                and action_timing='AFTER' and (event_manipulation='INSERT' or event_manipulation='DELETE' or event_manipulation='UPDATE')
-                and action_statement like 'EXECUTE PROCEDURE %') 
-                LOOP
-                    EXECUTE 'SELECT ' || func into tv;
-                END LOOP;
+                DROP TABLE __temp__Δ_ins_s;
+                DROP TABLE __temp__Δ_del_s;
+                DROP TABLE __temp__s;
             -- ELSE
                 -- RAISE LOG 'result from running the sh script: %', result;
                 -- RAISE check_violation USING MESSAGE = 'update on view is rejected by the external tool, result from running the sh script: ' 
@@ -128,24 +219,26 @@ AS $$
             -- RAISE LOG 'function of detecting dejima update is called by % , no request sent to dejima proxy', user_name;
         -- END IF;
     END IF;
-  END IF;
-  RETURN json_data;
-  EXCEPTION
+END IF;
+RETURN json_data;
+EXCEPTION
     WHEN object_not_in_prerequisite_state THEN
-        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to source relations of public.d_23';
+        RAISE object_not_in_prerequisite_state USING MESSAGE = 'no permission to insert or delete or update to public.s';
     WHEN OTHERS THEN
         GET STACKED DIAGNOSTICS text_var1 = RETURNED_SQLSTATE,
                                 text_var2 = PG_EXCEPTION_DETAIL,
                                 text_var3 = MESSAGE_TEXT;
-        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the function (non_trigger_)public.d_23_detect_update() ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
+        RAISE SQLSTATE 'DA000' USING MESSAGE = 'error on the function public.s_detect_update_on_d_23() ; error code: ' || text_var1 || ' ; ' || text_var2 ||' ; ' || text_var3;
         RETURN NULL;
-  END;
+END;
 $$;
 
-DROP TRIGGER IF EXISTS s_detect_update_d_23 ON public.s;
-        CREATE TRIGGER s_detect_update_d_23
-            AFTER INSERT OR UPDATE OR DELETE ON
-            public.s FOR EACH STATEMENT EXECUTE PROCEDURE public.d_23_detect_update();
+DROP TRIGGER IF EXISTS s_detect_update_on_d_23 ON public.s;
+CREATE TRIGGER s_detect_update_on_d_23
+    AFTER INSERT OR UPDATE OR DELETE ON
+    public.s FOR EACH STATEMENT EXECUTE PROCEDURE public.s_detect_update_on_d_23();
+
+
 
 CREATE OR REPLACE FUNCTION public.d_23_delta_action()
 RETURNS TRIGGER
@@ -211,11 +304,11 @@ DROP TABLE Δ_del_s;
 INSERT INTO public.s (SELECT * FROM  Δ_ins_s) ; 
 DROP TABLE Δ_ins_s;
         
-        insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM __temp__Δ_ins_d_23 EXCEPT SELECT * FROM public.__dummy__materialized_d_23) as t);
+        insertion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM __temp__Δ_ins_d_23) as t);
         IF insertion_data IS NOT DISTINCT FROM NULL THEN 
             insertion_data := '[]';
         END IF; 
-        deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM __temp__Δ_del_d_23 INTERSECT SELECT * FROM public.__dummy__materialized_d_23) as t);
+        deletion_data := (SELECT (array_to_json(array_agg(t)))::text FROM (SELECT * FROM __temp__Δ_del_d_23) as t);
         IF deletion_data IS NOT DISTINCT FROM NULL THEN 
             deletion_data := '[]';
         END IF; 
@@ -224,9 +317,7 @@ DROP TABLE Δ_ins_s;
             IF NOT (user_name = 'dejima') THEN 
                 json_data := concat('{"view": ' , '"public.d_23"', ', ' , '"insertions": ' , insertion_data , ', ' , '"deletions": ' , deletion_data , '}');
                 result := public.d_23_run_shell(json_data);
-                IF result = 'true' THEN 
-                    REFRESH MATERIALIZED VIEW public.__dummy__materialized_d_23;
-                ELSE
+                IF NOT (result = 'true') THEN
                     -- RAISE LOG 'result from running the sh script: %', result;
                     RAISE check_violation USING MESSAGE = 'update on view is rejected by the external tool, result from running the sh script: ' 
                     || result;
@@ -236,7 +327,6 @@ DROP TABLE Δ_ins_s;
             END IF;
         END IF;
     -- END IF;
-    REFRESH MATERIALIZED VIEW public.__dummy__materialized_d_23;
     RETURN NULL;
   EXCEPTION
     WHEN object_not_in_prerequisite_state THEN
@@ -266,7 +356,7 @@ AS $$
         CREATE TEMPORARY TABLE __temp__Δ_ins_d_23 ( LIKE public.d_23 INCLUDING ALL ) WITH OIDS ON COMMIT DROP;
         CREATE CONSTRAINT TRIGGER __temp__d_23_trigger_delta_action
         AFTER INSERT OR UPDATE OR DELETE ON 
-            __temp__Δ_ins_d_23 DEFERRABLE INITIALLY IMMEDIATE
+            __temp__Δ_ins_d_23 DEFERRABLE INITIALLY IMMEDIATE 
             FOR EACH ROW EXECUTE PROCEDURE public.d_23_delta_action();
 
         CREATE TEMPORARY TABLE __temp__Δ_del_d_23 ( LIKE public.d_23 INCLUDING ALL ) WITH OIDS ON COMMIT DROP;

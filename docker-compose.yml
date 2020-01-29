@@ -1,128 +1,120 @@
-version: '3'
+networks:
+  dejima-net: null
 services:
   p1-postgres:
-    image: ekayim/dejima-postgres:latest
     container_name: p1-postgres
-    ports:
-      - 54321:5432
-    networks:
-      - dejima-net
     environment:
-      - PEER_NAME=p1
+    - PEER_NAME=p1
+    image: ekayim/dejima-postgres:latest
+    networks:
+    - dejima-net
+    ports:
+    - 54321:5432
     volumes:
-      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./postgres/init:/docker-entrypoint-initdb.d/
-      - ./postgres/bx_setup:/etc/bx_setup
-
+    - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+    - ./postgres/init:/docker-entrypoint-initdb.d/
+    - ./postgres/bx_setup:/etc/bx_setup
   p1-proxy:
-    image: ekayim/dejima-proxy:latest
     container_name: p1-proxy
-    volumes:
-      - ./proxy:/proxy
-    ports:
-      - 8001:8000
-    environment:
-      - PEER_NAME=p1
-      - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
-      - CC_METHOD=global_lock
-    networks:
-      - dejima-net
     depends_on:
-      - p1-postgres
+    - p1-postgres
+    environment:
+    - PEER_NAME=p1
+    - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+    - CC_METHOD=r2w
+    image: ekayim/dejima-proxy:latest
+    networks:
+    - dejima-net
+    ports:
+    - 8001:8000
     stdin_open: true
     tty: true
-
+    volumes:
+    - ./proxy:/proxy
   p2-postgres:
-    image: ekayim/dejima-postgres:latest
     container_name: p2-postgres
-    ports:
-      - 54322:5432
-    networks:
-      - dejima-net
     environment:
-      - PEER_NAME=p2
+    - PEER_NAME=p2
+    image: ekayim/dejima-postgres:latest
+    networks:
+    - dejima-net
+    ports:
+    - 54322:5432
     volumes:
-      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./postgres/init:/docker-entrypoint-initdb.d/
-      - ./postgres/bx_setup:/etc/bx_setup
-
+    - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+    - ./postgres/init:/docker-entrypoint-initdb.d/
+    - ./postgres/bx_setup:/etc/bx_setup
   p2-proxy:
-    image: ekayim/dejima-proxy:latest
     container_name: p2-proxy
-    volumes:
-      - ./proxy:/proxy
-    environment:
-      - PEER_NAME=p2
-      - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
-      - CC_METHOD=global_lock
-    networks:
-      - dejima-net
     depends_on:
-      - p2-postgres
+    - p2-postgres
+    environment:
+    - PEER_NAME=p2
+    - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+    - CC_METHOD=r2w
+    image: ekayim/dejima-proxy:latest
+    networks:
+    - dejima-net
     stdin_open: true
     tty: true
-
+    volumes:
+    - ./proxy:/proxy
   p3-postgres:
-    image: ekayim/dejima-postgres:latest
     container_name: p3-postgres
-    ports:
-      - 54323:5432
-    networks:
-      - dejima-net
     environment:
-      - PEER_NAME=p3
-    volumes:
-      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./postgres/init:/docker-entrypoint-initdb.d/
-      - ./postgres/bx_setup:/etc/bx_setup
-
-  p3-proxy:
-    image: ekayim/dejima-proxy:latest
-    container_name: p3-proxy
-    volumes:
-      - ./proxy:/proxy
-    environment:
-      - PEER_NAME=p3
-      - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
-      - CC_METHOD=global_lock
-    networks:
-      - dejima-net
-    depends_on:
-      - p3-postgres
-    stdin_open: true
-    tty: true
-
-  p4-postgres:
+    - PEER_NAME=p3
     image: ekayim/dejima-postgres:latest
-    container_name: p4-postgres
-    ports:
-      - 54324:5432
     networks:
-      - dejima-net
-    environment:
-      - PEER_NAME=p4
-    volumes:
-      - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
-      - ./postgres/init:/docker-entrypoint-initdb.d/
-      - ./postgres/bx_setup:/etc/bx_setup
-
-  p4-proxy:
-    image: ekayim/dejima-proxy:latest
-    container_name: p4-proxy
-    volumes:
-      - ./proxy:/proxy
+    - dejima-net
     ports:
-      - 8004:8000
-    environment:
-      - PEER_NAME=p4
-      - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
-      - CC_METHOD=global_lock
-    networks:
-      - dejima-net
+    - 54323:5432
+    volumes:
+    - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+    - ./postgres/init:/docker-entrypoint-initdb.d/
+    - ./postgres/bx_setup:/etc/bx_setup
+  p3-proxy:
+    container_name: p3-proxy
     depends_on:
-      - p4-postgres
+    - p3-postgres
+    environment:
+    - PEER_NAME=p3
+    - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+    - CC_METHOD=r2w
+    image: ekayim/dejima-proxy:latest
+    networks:
+    - dejima-net
     stdin_open: true
     tty: true
-
-networks:
-  dejima-net:
+    volumes:
+    - ./proxy:/proxy
+  p4-postgres:
+    container_name: p4-postgres
+    environment:
+    - PEER_NAME=p4
+    image: ekayim/dejima-postgres:latest
+    networks:
+    - dejima-net
+    ports:
+    - 54324:5432
+    volumes:
+    - ./postgres/conf/postgresql.conf:/etc/postgresql.conf
+    - ./postgres/init:/docker-entrypoint-initdb.d/
+    - ./postgres/bx_setup:/etc/bx_setup
+  p4-proxy:
+    container_name: p4-proxy
+    depends_on:
+    - p4-postgres
+    environment:
+    - PEER_NAME=p4
+    - DEJIMA_CONFIG_YAML=/proxy/dejima_setting.yml
+    - CC_METHOD=r2w
+    image: ekayim/dejima-proxy:latest
+    networks:
+    - dejima-net
+    ports:
+    - 8004:8000
+    stdin_open: true
+    tty: true
+    volumes:
+    - ./proxy:/proxy
+version: '3'
