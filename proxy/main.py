@@ -27,3 +27,14 @@ elif CC_METHOD == "ticket":
             conn, _ = s.accept()
             t = ExecutionThread(conn)
             t.start()
+
+elif CC_METHOD == "r2w":
+    from r2w_thread import ExecutionThread
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        connection_address = ('', 8000)
+        s.bind(connection_address)
+        s.listen(5)
+        while True:
+            conn, _ = s.accept()
+            t = ExecutionThread(conn)
+            t.start()
