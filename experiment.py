@@ -9,8 +9,8 @@ result["abort"] = 0
 stop = False
 
 def a_increment():
+    payload = {"sql_statements": "UPDATE s SET value=value+1 WHERE id='A'"}
     while not stop:
-        payload = {"sql_statements": "UPDATE s SET value=value+1 WHERE id='A'"}
         r = requests.post("http://localhost:8001/exec_transaction", json.dumps(payload))
         if r.status_code == 200:
             result["commit"] += 1
@@ -18,8 +18,8 @@ def a_increment():
             result["abort"] += 1
 
 def b_increment():
+    payload = {"sql_statements": "UPDATE s SET value=value+1 WHERE id='B'"}
     while not stop:
-        payload = {"sql_statements": "UPDATE s SET value=value+1 WHERE id='B'"}
         r = requests.post("http://localhost:8004/exec_transaction", json.dumps(payload))
         if r.status_code == 200:
             result["commit"] += 1
