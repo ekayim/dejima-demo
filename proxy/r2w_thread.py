@@ -21,6 +21,10 @@ class ExecutionThread(threading.Thread):
         req = self.conn.recv(1024).decode()
         header, message_body = req.split("\r\n\r\n")
         url = header.split()[1]
+        if message_body == "":
+            self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
+            self.conn.close()
+            exit()
         params_dict = json.loads(message_body)
 
         my_peer_name = os.environ['PEER_NAME']

@@ -18,18 +18,20 @@ class ExecutionThread(threading.Thread):
         self.conn = conn
 
     def run(self):
-        logging.info("ExecutionThread : start")
         req = self.conn.recv(1024).decode()
-        logging.info("request : {}".format(req))
         header, message_body = req.split("\r\n\r\n")
         url = header.split()[1]
+        if message_body == "":
+            self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
+            self.conn.close()
+            exit()
         params_dict = json.loads(message_body)
 
         my_peer_name = os.environ['PEER_NAME']
 
         # switch statements for url
         if url == "/exec_transaction":
-            logging.info("execute update for dejima view ...")
+            logging.info("/exec_transaction called. sql: {}".format(params_dict["sql_statements"]))
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
                 dejima_setting = json.load(f)
@@ -63,7 +65,6 @@ class ExecutionThread(threading.Thread):
                                     t.start()
                                     thread_list.append(t)
 
-                        logging.info("wait ack from child")
                         for thread in thread_list:
                             thread.join()
                     ack = True
@@ -106,7 +107,6 @@ class ExecutionThread(threading.Thread):
             self.conn.close()
 
         elif url == "/update_dejima_view":
-            logging.info("execute update for base table...")
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
                 dejima_setting = json.load(f)
@@ -143,7 +143,6 @@ class ExecutionThread(threading.Thread):
                                     t = threading.Thread(target=dejimautils.send_json_for_child, args=(update_json, peer_name, child_result, child_conns))
                                     t.start()
                                     thread_list.append(t)
-                        logging.info("wait ack from child")
                         for thread in thread_list:
                             thread.join()
                     ack = True
@@ -163,7 +162,6 @@ class ExecutionThread(threading.Thread):
             else:
                 self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
 
-            logging.info("wait commit/abort")
             commit_or_abort = self.conn.recv(1024).decode()
 
             # phase 7 : commit or abort
@@ -174,7 +172,6 @@ class ExecutionThread(threading.Thread):
                     s.recv(1024)
                     s.close()
                 self.conn.sendall("ack".encode())
-                logging.info("execution thread finished : commit")
             elif commit_or_abort == "abort":
                 db_conn.rollback()
                 for s in child_conns:
@@ -182,7 +179,6 @@ class ExecutionThread(threading.Thread):
                     s.recv(1024)
                     s.close()
                 self.conn.sendall("ack".encode())
-                logging.info("execution thread finished : abort")
 
             db_conn.close()
             self.conn.close()

@@ -19,11 +19,13 @@ class ExecutionThread(threading.Thread):
         self.lock = lock
 
     def run(self):
-        logging.info("ExecutionThread : start")
         req = self.conn.recv(1024).decode()
-        logging.info("request : {}".format(req))
         header, message_body = req.split("\r\n\r\n")
         url = header.split()[1]
+        if message_body == "":
+            self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
+            self.conn.close()
+            exit()
         params_dict = json.loads(message_body)
 
         my_peer_name = os.environ['PEER_NAME']
@@ -33,10 +35,10 @@ class ExecutionThread(threading.Thread):
             if self.lock["lock"] == False:
                 self.lock["lock"] = True
                 self.lock["holder"] = params_dict["holder"]
-                logging.info("Accept Lock Request.")
+                logging.info("/lock called. Accept Lock Request.")
                 self.conn.send("HTTP/1.1 200 OK".encode())
             else:
-                logging.info("Request Blocked.")
+                logging.info("/lock called.Request Blocked.")
                 self.conn.send("HTTP/1.1 423 Locked".encode())
 
             self.conn.close()
@@ -45,7 +47,7 @@ class ExecutionThread(threading.Thread):
             if self.lock["holder"] == params_dict["holder"]:
                 self.lock["lock"] = False
                 self.lock["holder"] = None
-                logging.info("Unlocked.")
+                logging.info("/unlock called. Unlocked.")
             self.conn.send("HTTP/1.1 200 OK".encode())
             self.conn.close()
 
@@ -68,7 +70,7 @@ class ExecutionThread(threading.Thread):
                 self.lock["holder"] = None
                 exit()
 
-            logging.info("execute update for dejima view ...")
+            logging.info("/exec_transaction called. sql: {}".format(params_dict["sql_statements"]))
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
                 dejima_setting = json.load(f)
@@ -102,7 +104,6 @@ class ExecutionThread(threading.Thread):
                                     t.start()
                                     thread_list.append(t)
 
-                        logging.info("wait ack from child")
                         for thread in thread_list:
                             thread.join()
                     ack = True
@@ -152,7 +153,6 @@ class ExecutionThread(threading.Thread):
 
         elif url == "/update_dejima_view":
 
-            logging.info("execute update for base table...")
             dejima_setting = {}
             with open("/proxy/dejima_setting.json") as f:
                 dejima_setting = json.load(f)
@@ -166,9 +166,7 @@ class ExecutionThread(threading.Thread):
             with db_conn.cursor() as cur:
                 try:
                     # phase1 : execute update for certain dejima view
-                    logging.info("sql_for_dejima_view {}".format(sql_for_dejima_view))
                     for statement in sql_for_dejima_view:
-                        logging.info("sql statement: {}".format(statement))
                         cur.execute(statement)
 
                     # phase2 : detect update for other dejima view and member of the view.
@@ -188,7 +186,6 @@ class ExecutionThread(threading.Thread):
                                     t = threading.Thread(target=dejimautils.send_json_for_child, args=(update_json, peer_name, child_result, child_conns))
                                     t.start()
                                     thread_list.append(t)
-                        logging.info("wait ack from child")
                         for thread in thread_list:
                             thread.join()
                     ack = True
@@ -208,7 +205,6 @@ class ExecutionThread(threading.Thread):
             else:
                 self.conn.send("HTTP/1.1 500 Internal Server Error".encode())
 
-            logging.info("wait commit/abort")
             commit_or_abort = self.conn.recv(1024).decode()
 
             # phase 7 : commit or abort
@@ -219,7 +215,6 @@ class ExecutionThread(threading.Thread):
                     s.recv(1024)
                     s.close()
                 self.conn.sendall("ack".encode())
-                logging.info("execution thread finished : commit")
             elif commit_or_abort == "abort":
                 db_conn.rollback()
                 for s in child_conns:
@@ -227,7 +222,6 @@ class ExecutionThread(threading.Thread):
                     s.recv(1024)
                     s.close()
                 self.conn.sendall("ack".encode())
-                logging.info("execution thread finished : abort")
 
             db_conn.close()
             self.conn.close()
