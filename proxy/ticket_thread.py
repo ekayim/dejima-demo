@@ -101,7 +101,7 @@ class ExecutionThread(threading.Thread):
             if commit_or_abort == "commit":
                 self.conn.send("HTTP/1.1 200 OK".encode())
             elif commit_or_abort == "abort":
-                self.conn.send("HTTP/1.1 423 Locked".encode())
+                self.conn.send("HTTP/1.1 409 Conflict".encode())
 
             db_conn.close()
             self.conn.close()
